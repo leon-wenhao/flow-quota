@@ -1,0 +1,10 @@
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+.artifacts/
+*.xcuserstate
+xcuserdata/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

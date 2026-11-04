@@ -1,0 +1,935 @@
+{
+  "schemaVersion": 1,
+  "byteEncoding": "base-10 Int64 strings; null means absent",
+  "conversions": [
+    {
+      "id": "mb",
+      "input": "1",
+      "unit": "MB",
+      "expectedBytes": "1000000",
+      "expectedError": null
+    },
+    {
+      "id": "gb",
+      "input": "1",
+      "unit": "GB",
+      "expectedBytes": "1000000000",
+      "expectedError": null
+    },
+    {
+      "id": "decimal",
+      "input": "0.1",
+      "unit": "GB",
+      "expectedBytes": "100000000",
+      "expectedError": null
+    },
+    {
+      "id": "one-byte-mb",
+      "input": "0.000001",
+      "unit": "MB",
+      "expectedBytes": "1",
+      "expectedError": null
+    },
+    {
+      "id": "one-byte-gb",
+      "input": "0.000000001",
+      "unit": "GB",
+      "expectedBytes": "1",
+      "expectedError": null
+    },
+    {
+      "id": "trailing-zeroes",
+      "input": "1.000001000",
+      "unit": "MB",
+      "expectedBytes": "1000001",
+      "expectedError": null
+    },
+    {
+      "id": "zero",
+      "input": "0",
+      "unit": "GB",
+      "expectedBytes": "0",
+      "expectedError": null
+    },
+    {
+      "id": "whitespace",
+      "input": " 001.25\n",
+      "unit": "MB",
+      "expectedBytes": "1250000",
+      "expectedError": null
+    },
+    {
+      "id": "max-gb",
+      "input": "9223372036.854775807",
+      "unit": "GB",
+      "expectedBytes": "9223372036854775807",
+      "expectedError": null
+    },
+    {
+      "id": "max-mb",
+      "input": "9223372036854.775807",
+      "unit": "MB",
+      "expectedBytes": "9223372036854775807",
+      "expectedError": null
+    },
+    {
+      "id": "empty",
+      "input": " ",
+      "unit": "MB",
+      "expectedBytes": null,
+      "expectedError": "empty"
+    },
+    {
+      "id": "negative",
+      "input": "-1",
+      "unit": "GB",
+      "expectedBytes": null,
+      "expectedError": "invalidSyntax"
+    },
+    {
+      "id": "plus",
+      "input": "+1",
+      "unit": "MB",
+      "expectedBytes": null,
+      "expectedError": "invalidSyntax"
+    },
+    {
+      "id": "comma",
+      "input": "1,25",
+      "unit": "GB",
+      "expectedBytes": null,
+      "expectedError": "invalidSyntax"
+    },
+    {
+      "id": "exponent",
+      "input": "1e3",
+      "unit": "GB",
+      "expectedBytes": null,
+      "expectedError": "invalidSyntax"
+    },
+    {
+      "id": "missing-whole",
+      "input": ".1",
+      "unit": "MB",
+      "expectedBytes": null,
+      "expectedError": "invalidSyntax"
+    },
+    {
+      "id": "missing-fraction",
+      "input": "1.",
+      "unit": "MB",
+      "expectedBytes": null,
+      "expectedError": "invalidSyntax"
+    },
+    {
+      "id": "unicode",
+      "input": "１",
+      "unit": "MB",
+      "expectedBytes": null,
+      "expectedError": "invalidSyntax"
+    },
+    {
+      "id": "fractional-byte",
+      "input": "0.0000001",
+      "unit": "MB",
+      "expectedBytes": null,
+      "expectedError": "fractionalByte"
+    },
+    {
+      "id": "sub-byte-gb",
+      "input": "1.0000000001",
+      "unit": "GB",
+      "expectedBytes": null,
+      "expectedError": "fractionalByte"
+    },
+    {
+      "id": "overflow-one-byte",
+      "input": "9223372036.854775808",
+      "unit": "GB",
+      "expectedBytes": null,
+      "expectedError": "overflow"
+    },
+    {
+      "id": "huge",
+      "input": "99999999999999999999999",
+      "unit": "MB",
+      "expectedBytes": null,
+      "expectedError": "overflow"
+    }
+  ],
+  "days": [
+    {
+      "id": "before-midnight",
+      "instant": "2026-11-03T15:59:59Z",
+      "timeZone": "Asia/Shanghai",
+      "expectedDay": "2026-11-03"
+    },
+    {
+      "id": "midnight",
+      "instant": "2026-11-03T16:00:00Z",
+      "timeZone": "Asia/Shanghai",
+      "expectedDay": "2026-11-04"
+    },
+    {
+      "id": "wake-after-days",
+      "instant": "2026-11-06T08:00:00Z",
+      "timeZone": "Asia/Shanghai",
+      "expectedDay": "2026-11-06"
+    },
+    {
+      "id": "east",
+      "instant": "2026-11-04T00:30:00Z",
+      "timeZone": "Asia/Shanghai",
+      "expectedDay": "2026-11-04"
+    },
+    {
+      "id": "west",
+      "instant": "2026-11-04T00:30:00Z",
+      "timeZone": "America/Los_Angeles",
+      "expectedDay": "2026-11-03"
+    },
+    {
+      "id": "leap",
+      "instant": "2024-02-29T12:00:00Z",
+      "timeZone": "UTC",
+      "expectedDay": "2024-02-29"
+    },
+    {
+      "id": "dst-spring-before",
+      "instant": "2026-03-08T06:59:59Z",
+      "timeZone": "America/New_York",
+      "expectedDay": "2026-03-08"
+    },
+    {
+      "id": "dst-spring-after",
+      "instant": "2026-03-08T07:00:00Z",
+      "timeZone": "America/New_York",
+      "expectedDay": "2026-03-08"
+    },
+    {
+      "id": "short-day-end",
+      "instant": "2026-03-09T03:59:59Z",
+      "timeZone": "America/New_York",
+      "expectedDay": "2026-03-08"
+    },
+    {
+      "id": "short-day-midnight",
+      "instant": "2026-03-09T04:00:00Z",
+      "timeZone": "America/New_York",
+      "expectedDay": "2026-03-09"
+    },
+    {
+      "id": "dst-fall-first",
+      "instant": "2026-11-01T05:30:00Z",
+      "timeZone": "America/New_York",
+      "expectedDay": "2026-11-01"
+    },
+    {
+      "id": "dst-fall-repeat",
+      "instant": "2026-11-01T06:30:00Z",
+      "timeZone": "America/New_York",
+      "expectedDay": "2026-11-01"
+    },
+    {
+      "id": "long-day-end",
+      "instant": "2026-11-02T04:59:59Z",
+      "timeZone": "America/New_York",
+      "expectedDay": "2026-11-01"
+    },
+    {
+      "id": "long-day-midnight",
+      "instant": "2026-11-02T05:00:00Z",
+      "timeZone": "America/New_York",
+      "expectedDay": "2026-11-02"
+    }
+  ],
+  "evaluations": [
+    {
+      "id": "below-warning",
+      "uploadedBytes": "40",
+      "downloadedBytes": "39",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "withinLimit",
+      "expectedRemainingBytes": "21",
+      "expectedThresholdBytes": "80",
+      "expectedError": null
+    },
+    {
+      "id": "at-warning",
+      "uploadedBytes": "40",
+      "downloadedBytes": "40",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "warning",
+      "expectedRemainingBytes": "20",
+      "expectedThresholdBytes": "80",
+      "expectedError": null
+    },
+    {
+      "id": "before-cap",
+      "uploadedBytes": "49",
+      "downloadedBytes": "50",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "warning",
+      "expectedRemainingBytes": "1",
+      "expectedThresholdBytes": "80",
+      "expectedError": null
+    },
+    {
+      "id": "at-cap",
+      "uploadedBytes": "50",
+      "downloadedBytes": "50",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "blocked",
+      "expectedRemainingBytes": "0",
+      "expectedThresholdBytes": "80",
+      "expectedError": null
+    },
+    {
+      "id": "over-cap",
+      "uploadedBytes": "50",
+      "downloadedBytes": "51",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "blocked",
+      "expectedRemainingBytes": "0",
+      "expectedThresholdBytes": "80",
+      "expectedError": null
+    },
+    {
+      "id": "rounded-warning-below",
+      "uploadedBytes": "0",
+      "downloadedBytes": "80",
+      "limitBytes": "101",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "withinLimit",
+      "expectedRemainingBytes": "21",
+      "expectedThresholdBytes": "81",
+      "expectedError": null
+    },
+    {
+      "id": "rounded-warning-at",
+      "uploadedBytes": "0",
+      "downloadedBytes": "81",
+      "limitBytes": "101",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "warning",
+      "expectedRemainingBytes": "20",
+      "expectedThresholdBytes": "81",
+      "expectedError": null
+    },
+    {
+      "id": "one-byte-empty",
+      "uploadedBytes": "0",
+      "downloadedBytes": "0",
+      "limitBytes": "1",
+      "warningPercent": 1,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "withinLimit",
+      "expectedRemainingBytes": "1",
+      "expectedThresholdBytes": "1",
+      "expectedError": null
+    },
+    {
+      "id": "one-byte-full",
+      "uploadedBytes": "0",
+      "downloadedBytes": "1",
+      "limitBytes": "1",
+      "warningPercent": 1,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "blocked",
+      "expectedRemainingBytes": "0",
+      "expectedThresholdBytes": "1",
+      "expectedError": null
+    },
+    {
+      "id": "ordinary-preserves-usage",
+      "uploadedBytes": "50",
+      "downloadedBytes": "50",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "ordinary",
+      "hasRule": true,
+      "expectedStatus": "ordinaryNetwork",
+      "expectedRemainingBytes": null,
+      "expectedThresholdBytes": null,
+      "expectedError": null
+    },
+    {
+      "id": "unknown-scope",
+      "uploadedBytes": "50",
+      "downloadedBytes": "50",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "unknown",
+      "hasRule": true,
+      "expectedStatus": "unknownNetwork",
+      "expectedRemainingBytes": null,
+      "expectedThresholdBytes": null,
+      "expectedError": null
+    },
+    {
+      "id": "unlimited-explicit",
+      "uploadedBytes": "500",
+      "downloadedBytes": "500",
+      "limitBytes": null,
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "unlimited",
+      "expectedRemainingBytes": null,
+      "expectedThresholdBytes": null,
+      "expectedError": null
+    },
+    {
+      "id": "unlimited-new-app",
+      "uploadedBytes": "500",
+      "downloadedBytes": "500",
+      "limitBytes": null,
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": false,
+      "expectedStatus": "unlimited",
+      "expectedRemainingBytes": null,
+      "expectedThresholdBytes": null,
+      "expectedError": null
+    },
+    {
+      "id": "unavailable",
+      "uploadedBytes": null,
+      "downloadedBytes": null,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "usageUnavailable",
+      "expectedRemainingBytes": null,
+      "expectedThresholdBytes": null,
+      "expectedError": null
+    },
+    {
+      "id": "unavailable-unlimited",
+      "uploadedBytes": null,
+      "downloadedBytes": null,
+      "limitBytes": null,
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": false,
+      "expectedStatus": "usageUnavailable",
+      "expectedRemainingBytes": null,
+      "expectedThresholdBytes": null,
+      "expectedError": null
+    },
+    {
+      "id": "saturated-total",
+      "uploadedBytes": "9223372036854775807",
+      "downloadedBytes": "1",
+      "limitBytes": "9223372036854775807",
+      "warningPercent": 99,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "blocked",
+      "expectedRemainingBytes": "0",
+      "expectedThresholdBytes": "9131138316486228049",
+      "expectedError": null
+    },
+    {
+      "id": "max-before-threshold",
+      "uploadedBytes": "0",
+      "downloadedBytes": "9131138316486228048",
+      "limitBytes": "9223372036854775807",
+      "warningPercent": 99,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": "withinLimit",
+      "expectedRemainingBytes": "92233720368547759",
+      "expectedThresholdBytes": "9131138316486228049",
+      "expectedError": null
+    },
+    {
+      "id": "negative-counter",
+      "uploadedBytes": "-1",
+      "downloadedBytes": "0",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "hotspot",
+      "hasRule": true,
+      "expectedStatus": null,
+      "expectedRemainingBytes": null,
+      "expectedThresholdBytes": null,
+      "expectedError": "negativeUsage"
+    }
+  ],
+  "notifications": [
+    {
+      "id": "first-warning",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "80",
+      "network": "hotspot",
+      "delivered": [],
+      "expectedNotification": "warning"
+    },
+    {
+      "id": "warning-restart",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "90",
+      "network": "hotspot",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "signed.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "warning"
+        }
+      ],
+      "expectedNotification": null
+    },
+    {
+      "id": "warning-then-block",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "100",
+      "network": "hotspot",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "signed.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "warning"
+        }
+      ],
+      "expectedNotification": "blocked"
+    },
+    {
+      "id": "jump-direct-block",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "120",
+      "network": "hotspot",
+      "delivered": [],
+      "expectedNotification": "blocked"
+    },
+    {
+      "id": "block-reconnect",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "120",
+      "network": "hotspot",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "signed.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "blocked"
+        }
+      ],
+      "expectedNotification": null
+    },
+    {
+      "id": "block-suppresses-warning",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "80",
+      "network": "hotspot",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "signed.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "blocked"
+        }
+      ],
+      "expectedNotification": null
+    },
+    {
+      "id": "ordinary-no-notification",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "120",
+      "network": "ordinary",
+      "delivered": [],
+      "expectedNotification": null
+    },
+    {
+      "id": "unknown-no-notification",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "120",
+      "network": "unknown",
+      "delivered": [],
+      "expectedNotification": null
+    },
+    {
+      "id": "new-version-can-notify",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 2,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "80",
+      "network": "hotspot",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "signed.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "warning"
+        }
+      ],
+      "expectedNotification": "warning"
+    },
+    {
+      "id": "new-day-can-notify",
+      "appKey": "signed.app",
+      "day": "2026-11-05",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "80",
+      "network": "hotspot",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "signed.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "warning"
+        }
+      ],
+      "expectedNotification": "warning"
+    },
+    {
+      "id": "other-app-does-not-dedup",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "80",
+      "network": "hotspot",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "other.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "warning"
+        }
+      ],
+      "expectedNotification": "warning"
+    },
+    {
+      "id": "unlimited-no-notification",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": null,
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "120",
+      "network": "hotspot",
+      "delivered": [],
+      "expectedNotification": null
+    }
+  ],
+  "budgets": [
+    {
+      "id": "partial-settle-release-forfeit",
+      "limitBytes": "100",
+      "usedBytes": "10",
+      "steps": [
+        {
+          "operation": "reserve",
+          "token": "a",
+          "bytes": "70",
+          "expectedGrantedBytes": "70",
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "10",
+          "expectedReservedBytes": "70",
+          "expectedAvailableBytes": "20"
+        },
+        {
+          "operation": "reserve",
+          "token": "b",
+          "bytes": "50",
+          "expectedGrantedBytes": "20",
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "10",
+          "expectedReservedBytes": "90",
+          "expectedAvailableBytes": "0"
+        },
+        {
+          "operation": "reserve",
+          "token": null,
+          "bytes": "1",
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "10",
+          "expectedReservedBytes": "90",
+          "expectedAvailableBytes": "0"
+        },
+        {
+          "operation": "reconcile",
+          "token": "a",
+          "bytes": "30",
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "40",
+          "expectedReservedBytes": "20",
+          "expectedAvailableBytes": "40"
+        },
+        {
+          "operation": "release",
+          "token": "b",
+          "bytes": null,
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "40",
+          "expectedReservedBytes": "0",
+          "expectedAvailableBytes": "60"
+        },
+        {
+          "operation": "reserve",
+          "token": "c",
+          "bytes": "100",
+          "expectedGrantedBytes": "60",
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "40",
+          "expectedReservedBytes": "60",
+          "expectedAvailableBytes": "0"
+        },
+        {
+          "operation": "forfeit",
+          "token": "c",
+          "bytes": null,
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "100",
+          "expectedReservedBytes": "0",
+          "expectedAvailableBytes": "0"
+        }
+      ]
+    },
+    {
+      "id": "rule-revisions-retain-old-holds",
+      "limitBytes": "100",
+      "usedBytes": "40",
+      "steps": [
+        {
+          "operation": "reserve",
+          "token": "old",
+          "bytes": "50",
+          "expectedGrantedBytes": "50",
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "40",
+          "expectedReservedBytes": "50",
+          "expectedAvailableBytes": "10"
+        },
+        {
+          "operation": "update",
+          "token": null,
+          "bytes": null,
+          "expectedGrantedBytes": null,
+          "limitBytes": "30",
+          "version": 2,
+          "expectedUsedBytes": "40",
+          "expectedReservedBytes": "50",
+          "expectedAvailableBytes": "0"
+        },
+        {
+          "operation": "reserve",
+          "token": null,
+          "bytes": "1",
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "40",
+          "expectedReservedBytes": "50",
+          "expectedAvailableBytes": "0"
+        },
+        {
+          "operation": "reconcile",
+          "token": "old",
+          "bytes": "20",
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "60",
+          "expectedReservedBytes": "0",
+          "expectedAvailableBytes": "0"
+        },
+        {
+          "operation": "update",
+          "token": null,
+          "bytes": null,
+          "expectedGrantedBytes": null,
+          "limitBytes": "100",
+          "version": 3,
+          "expectedUsedBytes": "60",
+          "expectedReservedBytes": "0",
+          "expectedAvailableBytes": "40"
+        },
+        {
+          "operation": "reserve",
+          "token": "new",
+          "bytes": "100",
+          "expectedGrantedBytes": "40",
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "60",
+          "expectedReservedBytes": "40",
+          "expectedAvailableBytes": "0"
+        }
+      ]
+    },
+    {
+      "id": "disable-reenable-retains-usage",
+      "limitBytes": "100",
+      "usedBytes": "20",
+      "steps": [
+        {
+          "operation": "reserve",
+          "token": "old",
+          "bytes": "30",
+          "expectedGrantedBytes": "30",
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "20",
+          "expectedReservedBytes": "30",
+          "expectedAvailableBytes": "50"
+        },
+        {
+          "operation": "update",
+          "token": null,
+          "bytes": null,
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": 2,
+          "expectedUsedBytes": "20",
+          "expectedReservedBytes": "30",
+          "expectedAvailableBytes": "9223372036854775757"
+        },
+        {
+          "operation": "reserve",
+          "token": "extra",
+          "bytes": "100",
+          "expectedGrantedBytes": "100",
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "20",
+          "expectedReservedBytes": "130",
+          "expectedAvailableBytes": "9223372036854775657"
+        },
+        {
+          "operation": "update",
+          "token": null,
+          "bytes": null,
+          "expectedGrantedBytes": null,
+          "limitBytes": "100",
+          "version": 3,
+          "expectedUsedBytes": "20",
+          "expectedReservedBytes": "130",
+          "expectedAvailableBytes": "0"
+        },
+        {
+          "operation": "release",
+          "token": "extra",
+          "bytes": null,
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "20",
+          "expectedReservedBytes": "30",
+          "expectedAvailableBytes": "50"
+        },
+        {
+          "operation": "forfeit",
+          "token": "old",
+          "bytes": null,
+          "expectedGrantedBytes": null,
+          "limitBytes": null,
+          "version": null,
+          "expectedUsedBytes": "50",
+          "expectedReservedBytes": "0",
+          "expectedAvailableBytes": "50"
+        }
+      ]
+    }
+  ]
+}
