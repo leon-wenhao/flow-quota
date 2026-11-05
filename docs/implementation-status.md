@@ -208,3 +208,14 @@ arm64、x86_64 开发构建及脚本签名检查通过，已将 arm64 新包替�
 成功证据 `.artifacts/service-repair.i9Lfvv/service-launchservices.json`：serviceStatus=1、monitoring=paused、pausedCheck=true，读取 27 项既有应用来源，无待发预警；两次快照时间推进但采样时间不推进。后续 launchctl 的 Agent PID 34508 为 running，Mach endpoint active；未发现 nettop。已打开新版界面，原生 AX 状态确认「应用采集已暂停」、流量采集 Switch 为 off，底栏无服务连接异常。仅确认当前数据可读取，未做数据库逐行前后对照，不扩展为计费精度验收。
 
 已清除本次保留的临时 launchd 暂停启动标记，现有服务仍暂停，未自动恢复采样。旧安装包保存在同目录 Previous Flow Quota.app。新增 scripts/install-macos-dev-paused.sh 固化成功的完整包替换、限定副本注册清理、系统正常启动下的官方修复与 XPC 确认流程；拒绝在 Agent／nettop 正运行时直接替换，保存旧包及环境快照，失败保留暂停启动保护并明确报告。脚本 shell 语法检查通过；最终组合脚本没有再次重跑，避免重复改动已恢复服务。本轮未产生实验上传、下载、测速或真实接口采样。
+
+## macOS 发布准备流程（2026-11-05）
+
+已补齐可重复的本地开发版发布准备流程：
+
+- `macos/Configuration/version.env` 作为版本和 build 的单一输入；`scripts/set-version.sh` 同步更新 `Info.plist` 和 `update-manifest.json`。
+- `scripts/build-macos.sh` 在构建时把版本注入最终 `.app`，DMG 文件名不再写死 `0.1.0`，支持 `--dmg-output` 输出到指定发布目录。
+- `scripts/release-macos.sh` 会检查三个版本来源一致，构建 arm64／x86_64 DMG，生成 `SHA256SUMS`、`release-manifest.json`、更新清单副本和发布说明模板。
+- 发布步骤和命令见 `docs/release-macos.md`；脚本不创建 GitHub Release、不上传文件、不执行 Developer ID 签名或公证。
+
+使用当前 `0.1.0` build `1` 实际运行发布准备脚本，两个 DMG 均生成成功，两个 SHA-256 校验均通过，最终 `.app` 的 `CFBundleShortVersionString` 和 `CFBundleVersion` 分别为 `0.1.0` 和 `1`。系统 Python 使用绝对路径，避免本机失效的 Conda 架构阻塞发布脚本。

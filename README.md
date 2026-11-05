@@ -31,6 +31,10 @@ open ".artifacts/arm64/Flow Quota.app" --args --window
 
 含后台大流量预警的新版已安装到 `/Applications/Flow Quota.app`，生产库 v3→v4 升级与暂停状态的真实 XPC、界面检查通过。为避免热点实验，当前保持暂停，尚未进行真实接口计量验收；系统通知仍待用户授权。详见[验证记录](docs/implementation-status.md)。
 
+## 发布
+
+本地开发版发布流程见 [macOS 发布流程](docs/release-macos.md)。使用 `scripts/set-version.sh` 同步版本号，再运行 `scripts/release-macos.sh` 生成 arm64／x86_64 DMG、SHA-256 校验和及更新清单副本。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，发布前需要按文档手动创建 GitHub Release。
+
 ## 首次使用与验证
 
 1. 启动完整 `.app`，点击“启用服务并恢复采集”。系统若要求批准后台服务，由用户在登录项设置中批准。重建后旧服务身份失效时，可在设置中使用“修复开发服务”。
