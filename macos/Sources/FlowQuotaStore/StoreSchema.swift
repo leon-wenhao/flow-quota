@@ -1,7 +1,7 @@
 import Foundation
 
 enum StoreSchema {
-    static let currentVersion: Int64 = 2
+    static let currentVersion: Int64 = 4
     static let nonemptyKey = "typeof(app_key) = 'text' AND length(trim(app_key)) > 0"
 
     static func migrate(_ database: SQLiteConnection) throws {
@@ -17,6 +17,15 @@ enum StoreSchema {
             if version < 2 {
                 for sql in versionTwo { try database.execute(sql) }
                 try database.execute("PRAGMA user_version = 2")
+            }
+            if version < 3 {
+                // Independent meter: old application counters cannot backfill it.
+                for sql in versionThree { try database.execute(sql) }
+                try database.execute("PRAGMA user_version = 3")
+            }
+            if version < 4 {
+                for sql in versionFour { try database.execute(sql) }
+                try database.execute("PRAGMA user_version = 4")
             }
             // Reject legacy collisions explicitly; never merge or discard usage.
             let keys = try database.query("SELECT app_key FROM applications") { $0.text(0) }
@@ -85,6 +94,17 @@ enum StoreSchema {
         """
         CREATE INDEX outstanding_leases ON budget_leases(app_key, day)
           WHERE uploaded_bytes IS NULL
+        """
+    ]
+
+    static let versionThree = [
+        """
+        CREATE TABLE daily_interface_usage (
+          day TEXT NOT NULL PRIMARY KEY CHECK(\(StoreDay.sqlCheck)),
+          uploaded_bytes INTEGER NOT NULL CHECK(typeof(uploaded_bytes) = 'integer' AND uploaded_bytes >= 0),
+          downloaded_bytes INTEGER NOT NULL CHECK(typeof(downloaded_bytes) = 'integer' AND downloaded_bytes >= 0),
+          CHECK(downloaded_bytes <= 9223372036854775807 - uploaded_bytes)
+        )
         """
     ]
 }

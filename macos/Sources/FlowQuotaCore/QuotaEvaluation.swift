@@ -11,7 +11,7 @@ public enum QuotaStatus: String, Codable, Sendable {
 
 public struct QuotaEvaluation: Equatable, Sendable {
     public let status: QuotaStatus
-    /// True only for a known hotspot; ordinary/unknown paths must not spend hotspot budget.
+    /// True for automatic high-cost paths or manual hotspot marks; ordinary/unknown paths do not count.
     public let countsTraffic: Bool
     /// Nil for unlimited, unavailable or inapplicable evaluation. Never negative.
     public let remainingBytes: Int64?
@@ -19,15 +19,18 @@ public struct QuotaEvaluation: Equatable, Sendable {
 }
 
 public enum QuotaEvaluator {
-    /// Upload + download are hotspot-only counters for the selected app/day, never all-network
+    /// Upload + download are metered-scope counters for the selected app/day, never all-network
     /// traffic. Nil means unavailable, not zero. Negative counters throw; total overflow saturates.
     public static func evaluate(rule: QuotaRule?, usage: DailyUsage?,
                                 network: NetworkState) throws -> QuotaEvaluation {
         if let usage, usage.uploadedBytes < 0 || usage.downloadedBytes < 0 {
             throw QuotaEvaluationError.negativeUsage
         }
-        if network == .ordinary { return result(.ordinaryNetwork, counts: false) }
-        if network == .unknown { return result(.unknownNetwork, counts: false) }
+        switch network {
+        case .ordinary: return result(.ordinaryNetwork, counts: false)
+        case .unknown: return result(.unknownNetwork, counts: false)
+        case .hotspot, .expensive: break
+        }
         guard let usage else { return result(.usageUnavailable, counts: true) }
         guard let rule, let limit = rule.limitBytes else { return result(.unlimited, counts: true) }
         let used = usage.totalBytes

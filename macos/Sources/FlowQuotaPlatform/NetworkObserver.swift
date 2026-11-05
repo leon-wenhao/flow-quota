@@ -5,19 +5,47 @@ import Network
 public struct NetworkObservation: Sendable {
     public let state: NetworkState
     public let message: String
+    public var generation: UInt64 = 0
+    /// Eligible physical candidates, not every interface advertised by NWPath.
+    public let interfaceIndexes: Set<UInt32>
+
+    public var interfaceSelection: InterfaceSelection {
+        guard state != .unknown else { return .unavailable(.networkUnavailable) }
+        guard !interfaceIndexes.isEmpty else { return .unavailable(.noPhysicalInterface) }
+        guard interfaceIndexes.count == 1, let index = interfaceIndexes.first else {
+            return .unavailable(.ambiguousPhysicalInterfaces)
+        }
+        return .selected(index)
+    }
+
+    public init(state: NetworkState, message: String, generation: UInt64 = 0,
+                interfaceIndexes: Set<UInt32> = []) {
+        self.state = state
+        self.message = message
+        self.generation = generation
+        self.interfaceIndexes = interfaceIndexes.filter { $0 > 0 }
+    }
 }
 
-/// Cost is a signal, not proof of tethering. Manual marking expires on path changes.
+/// Cost determines automatic metering, not hotspot identity. Manual marks expire
+/// on every path update, including a new connection using the same interface.
 public final class NetworkObserver: @unchecked Sendable {
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "local.flowquota.network")
     private let lock = NSLock()
-    private var observation = NetworkObservation(state: .unknown, message: "正在识别网络。")
-    private var manualMark = false
-    private var pathSignature: String?
+    private var state = NetworkTrackingState()
 
     public init() {
-        monitor.pathUpdateHandler = { [weak self] path in self?.update(path) }
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
+            lock.lock()
+            defer { lock.unlock() }
+            let indexes = eligiblePhysicalInterfaceIndexes(
+                path.availableInterfaces.map { (index: $0.index, type: $0.type) },
+                usesInterfaceType: path.usesInterfaceType)
+            state.update(isAvailable: path.status == .satisfied, isExpensive: path.isExpensive,
+                         interfaceIndexes: indexes)
+        }
         monitor.start(queue: queue)
     }
 
@@ -26,38 +54,72 @@ public final class NetworkObserver: @unchecked Sendable {
     public func snapshot() -> NetworkObservation {
         lock.lock()
         defer { lock.unlock() }
-        if manualMark {
-            return NetworkObservation(state: .hotspot, message: "当前路径已手动标记为热点；网络状态更新后重新确认。")
-        }
-        return observation
+        return state.snapshot
     }
 
     public func markCurrentPath(_ marked: Bool) throws {
         lock.lock()
         defer { lock.unlock() }
-        guard pathSignature != nil else {
-            throw PlatformError.unavailable("网络状态尚未就绪，暂时无法标记热点。")
+        try state.markCurrentPath(marked)
+    }
+}
+
+/// Deterministic state transitions shared by the system callback and unit tests.
+/// No interface name, IP or SSID is treated as a durable connection identity.
+struct NetworkTrackingState {
+    private var automatic = NetworkObservation(state: .unknown, message: "正在识别网络。")
+    private var isAvailable = false
+    private var manualMark = false
+    private var generation: UInt64 = 0
+
+    var snapshot: NetworkObservation {
+        if manualMark {
+            return NetworkObservation(state: .hotspot,
+                message: "当前连接已手动标记为热点并计量；网络状态更新后重新判断。", generation: generation,
+                interfaceIndexes: automatic.interfaceIndexes)
         }
+        var value = automatic
+        value.generation = generation
+        return value
+    }
+
+    mutating func markCurrentPath(_ marked: Bool) throws {
+        guard isAvailable else {
+            throw PlatformError.unavailable("网络尚未就绪或已断开，暂时无法标记热点。")
+        }
+        if manualMark != marked { generation &+= 1 }
         manualMark = marked
     }
 
-    private func update(_ path: NWPath) {
-        lock.lock()
-        defer { lock.unlock() }
-        // Interface names only delimit this session's path. They are never persisted
-        // or treated as a durable hotspot identity (SSID access is not required).
-        let signature = "\(path.status):\(path.isExpensive):" + path.availableInterfaces
-            .map { "\($0.index):\($0.type)" }.sorted().joined(separator: ",")
-        // Even a change on the same interface may be a different connection.
-        // Do not retain a hotspot mark solely because its interface name matches.
+    mutating func update(isAvailable: Bool, isExpensive: Bool, interfaceIndexes: Set<UInt32> = []) {
+        self.isAvailable = isAvailable
         manualMark = false
-        pathSignature = path.status == .satisfied ? signature : nil
-        if path.status != .satisfied {
-            observation = NetworkObservation(state: .unknown, message: "当前网络不可用。")
-        } else if path.isExpensive {
-            observation = NetworkObservation(state: .unknown, message: "检测到高成本网络，尚未确认热点；可手动标记。")
+        // The sampler uses this generation to discard cross-connection deltas.
+        generation &+= 1
+        if !isAvailable {
+            automatic = NetworkObservation(state: .unknown, message: "当前网络不可用，不累计用量。")
+        } else if isExpensive {
+            automatic = NetworkObservation(state: .expensive,
+                message: "系统报告高成本网络，采集期间自动计量；该信号不确认热点设备或运营商。",
+                interfaceIndexes: interfaceIndexes)
         } else {
-            observation = NetworkObservation(state: .ordinary, message: "当前路径未报告为高成本网络；可手动标记热点。")
+            automatic = NetworkObservation(state: .ordinary,
+                message: "当前为普通网络，不自动累计；若实际连接热点，可手动标记。",
+                interfaceIndexes: interfaceIndexes)
         }
     }
+}
+
+/// availableInterfaces alone does not prove use. Never fall back to tunnels or
+/// pick the first candidate when several physical interfaces remain possible.
+func eligiblePhysicalInterfaceIndexes(
+    _ interfaces: [(index: Int, type: NWInterface.InterfaceType)],
+    usesInterfaceType: (NWInterface.InterfaceType) -> Bool
+) -> Set<UInt32> {
+    Set(interfaces.compactMap { interface in
+        guard [.wifi, .wiredEthernet, .cellular].contains(interface.type),
+              usesInterfaceType(interface.type),
+              let index = UInt32(exactly: interface.index), index > 0 else { return nil }
+        return index
+    })
 }

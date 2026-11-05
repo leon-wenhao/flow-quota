@@ -3,13 +3,13 @@ import FlowQuotaCore
 import Testing
 @testable import FlowQuotaApp
 
-@MainActor @Test func unreadyServiceKeepsUsageUnknownButAllowsNetworkMark() async throws {
+@MainActor @Test func unsampledServiceKeepsUsageUnknownButAllowsRulesAndNetworkMark() async throws {
     let client = FakeAgentClient(applications: [try application()])
     let state = AppState(client: client)
     await state.refresh()
     #expect(state.connected)
     #expect(state.totalUsage == nil)
-    #expect(!state.canEdit)
+    #expect(state.canEdit)
     #expect(state.canConfigureNetwork)
     state.setHotspotOverride(true)
     await finishOperation(state)
@@ -84,4 +84,48 @@ import Testing
     state.stopForTermination { allowed = $0 }
     await finishOperation(state)
     #expect(allowed == true)
+}
+
+@MainActor @Test func samplingAvailabilityIsIndependentOfFilterReadiness() async throws {
+    for monitoring in [MonitoringStatus.collecting, .paused] {
+        let client = FakeAgentClient(applications: [try application(used: 42)],
+                                     monitoring: monitoring, sampledAt: Date())
+        let state = AppState(client: client)
+        await state.refresh()
+        #expect(state.snapshot?.readiness == .notInstalled)
+        #expect(state.usageAvailable)
+        #expect(state.knownUsage(try application(used: 42)) == 42)
+        #expect(state.totalUsage == nil) // Application sampling cannot supply an interface total.
+        #expect(state.canEdit)
+    }
+    for monitoring in [MonitoringStatus.unavailable, .failed] {
+        let client = FakeAgentClient(readiness: .ready, applications: [try application(used: 42)],
+                                     monitoring: monitoring, sampledAt: Date())
+        let state = AppState(client: client)
+        await state.refresh()
+        #expect(!state.usageAvailable)
+        #expect(state.totalUsage == nil)
+        #expect(state.canEdit)
+    }
+}
+
+@MainActor @Test func collectingWithoutFirstSampleRemainsUnknown() async throws {
+    let client = FakeAgentClient(readiness: .ready, applications: [try application()], monitoring: .collecting)
+    let state = AppState(client: client)
+    await state.refresh()
+    #expect(!state.usageAvailable)
+    #expect(state.totalUsage == nil)
+    #expect(state.knownUsage(try application()) == nil)
+}
+
+@MainActor @Test func reminderConfigurationSavesEvenWithFailedSamplingAndNoFilter() async throws {
+    let client = FakeAgentClient(applications: [try application()], monitoring: .failed)
+    let state = AppState(client: client)
+    await state.refresh()
+    var acknowledged = false
+    state.save(appKey: "signed.test", rule: try QuotaRule(limitBytes: 200, version: 2)) { acknowledged = true }
+    await finishOperation(state)
+    #expect(acknowledged)
+    #expect(client.savedRules == 1)
+    #expect(state.notice?.contains("持久化") == true)
 }

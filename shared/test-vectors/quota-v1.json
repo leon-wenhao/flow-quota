@@ -477,6 +477,45 @@
       "expectedRemainingBytes": null,
       "expectedThresholdBytes": null,
       "expectedError": "negativeUsage"
+    },
+    {
+      "id": "expensive-below-warning",
+      "uploadedBytes": "40",
+      "downloadedBytes": "39",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "expensive",
+      "hasRule": true,
+      "expectedStatus": "withinLimit",
+      "expectedRemainingBytes": "21",
+      "expectedThresholdBytes": "80",
+      "expectedError": null
+    },
+    {
+      "id": "expensive-at-warning",
+      "uploadedBytes": "40",
+      "downloadedBytes": "40",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "expensive",
+      "hasRule": true,
+      "expectedStatus": "warning",
+      "expectedRemainingBytes": "20",
+      "expectedThresholdBytes": "80",
+      "expectedError": null
+    },
+    {
+      "id": "expensive-at-cap",
+      "uploadedBytes": "50",
+      "downloadedBytes": "50",
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "network": "expensive",
+      "hasRule": true,
+      "expectedStatus": "blocked",
+      "expectedRemainingBytes": "0",
+      "expectedThresholdBytes": "80",
+      "expectedError": null
     }
   ],
   "notifications": [
@@ -698,6 +737,63 @@
       "network": "hotspot",
       "delivered": [],
       "expectedNotification": null
+    },
+    {
+      "id": "expensive-first-warning",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "80",
+      "network": "expensive",
+      "delivered": [],
+      "expectedNotification": "warning"
+    },
+    {
+      "id": "expensive-warning-restart",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "90",
+      "network": "expensive",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "signed.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "warning"
+        }
+      ],
+      "expectedNotification": null
+    },
+    {
+      "id": "expensive-warning-then-block",
+      "appKey": "signed.app",
+      "day": "2026-11-04",
+      "ruleVersion": 1,
+      "limitBytes": "100",
+      "warningPercent": 80,
+      "uploadedBytes": "0",
+      "downloadedBytes": "100",
+      "network": "expensive",
+      "delivered": [
+        {
+          "identity": {
+            "appKey": "signed.app",
+            "day": "2026-11-04",
+            "ruleVersion": 1
+          },
+          "kind": "warning"
+        }
+      ],
+      "expectedNotification": "blocked"
     }
   ],
   "budgets": [

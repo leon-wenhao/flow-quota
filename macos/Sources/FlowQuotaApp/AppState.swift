@@ -3,10 +3,12 @@ import FlowQuotaCore
 import FlowQuotaPlatform
 import Observation
 
-/// One UI client, one visible-panel poller and at most one mutation. No UI persistence of the ledger.
+/// Service snapshots and serialized UI mutations. The AppDelegate owns background polling.
 @MainActor @Observable
 final class AppState {
     let notifications = NotificationPermission()
+    let reminderDelivery: ReminderDelivery
+    let trafficAlertDelivery: TrafficAlertDelivery
     private(set) var snapshot: AgentSnapshot?
     private(set) var connected = false
     private(set) var everConnected = false
@@ -17,16 +19,29 @@ final class AppState {
     private(set) var connectionError: String?
     private(set) var notice: String?
     private(set) var quitRequested = false
-    @ObservationIgnored private let client: any AgentServiceClient
+    private(set) var updateState: UpdateCheckState = .idle
+    private(set) var lastUpdateCheckAt: Date?
+    @ObservationIgnored let client: any AgentServiceClient
     @ObservationIgnored private var actionTask: Task<Void, Never>?
+    @ObservationIgnored private var updateTask: Task<Void, Never>?
     @ObservationIgnored private var refreshGeneration = 0
     @ObservationIgnored private var expiryTask: Task<Void, Never>?
 
-    init(client: any AgentServiceClient = AgentClient()) { self.client = client }
+    init(client: any AgentServiceClient = AgentClient(),
+         scheduler: any ReminderNotificationScheduling = SystemReminderScheduler()) {
+        self.client = client
+        reminderDelivery = ReminderDelivery(client: client, scheduler: scheduler)
+        trafficAlertDelivery = TrafficAlertDelivery(client: client, scheduler: scheduler)
+    }
 
     var busy: Bool { operation != nil }
+    var updateChecking: Bool { updateState == .checking }
+    var currentVersionText: String {
+        let version = AppVersion.current
+        return "\(version.marketingString)（build \(version.build)）"
+    }
     var canConfigureNetwork: Bool { connected && snapshotIsCurrent && !busy && !quitRequested }
-    var canEdit: Bool { canConfigureNetwork && snapshot?.readiness == .ready }
+    var canEdit: Bool { canConfigureNetwork }
     var snapshotIsCurrent: Bool {
         guard let snapshot, !snapshotExpired else { return false }
         let age = Date().timeIntervalSince(snapshot.generatedAt)
@@ -34,17 +49,42 @@ final class AppState {
               let snapshotDay = try? LocalDay.key(for: snapshot.generatedAt, in: .current) else { return false }
         return (-5...15).contains(age) && snapshotDay == today
     }
-    // In the current agent contract .hotspot means an acknowledged manual path mark.
-    // NWPath.isExpensive alone remains .unknown and is described by the service message.
+    // Only .hotspot acknowledges a manual mark; automatic cost signals are distinct.
     var hotspotMarked: Bool { connected && snapshotIsCurrent && snapshot?.network == .hotspot }
-    var usageAvailable: Bool { connected && snapshotIsCurrent && snapshot?.readiness == .ready }
+    private var currentNetwork: NetworkState? {
+        connected && snapshotIsCurrent ? snapshot?.network : nil
+    }
+    var showsHotspotControl: Bool { currentNetwork != .expensive }
+    var networkTitle: String {
+        switch currentNetwork {
+        case .expensive: return "当前连接：高成本网络"
+        case .hotspot: return "当前连接：手动标记为热点"
+        case .ordinary: return "当前连接：普通网络"
+        case .unknown, nil: return "当前连接：未知"
+        }
+    }
+    var networkDetail: String {
+        switch currentNetwork {
+        case .expensive:
+            return "系统报告高成本网络；这不表示已确认手机热点、设备或运营商。采集期间自动计量，与手动热点共用每日提醒预算。"
+        case .hotspot:
+            return "服务已确认手动标记；此连接的观测增量与高成本网络共用每日提醒预算。"
+        case .ordinary:
+            return "当前连接不自动计量；如需计入每日提醒预算，可手动标记为热点。"
+        case .unknown, nil:
+            return "当前网络状态不可用；可在服务允许时手动标记为热点，计入同一每日提醒预算。"
+        }
+    }
+    var usageAvailable: Bool {
+        guard connected, snapshotIsCurrent, let snapshot, snapshot.sampledAt != nil else { return false }
+        return snapshot.monitoring == .collecting || snapshot.monitoring == .paused
+    }
     var unavailableReason: String {
         if !networkUnavailableReason.isEmpty { return networkUnavailableReason }
-        if snapshot?.readiness != .ready { return "保护组件尚未就绪，无法确认额度生效。请完成安装与系统批准。" }
         return ""
     }
     var networkUnavailableReason: String {
-        if quitRequested { return "正在等待停止保护的确认。" }
+        if quitRequested { return "正在等待停止采集的确认。" }
         if busy { return "正在等待服务确认，请稍候。" }
         if !connected { return "本地服务未连接。请先启用服务或重试连接。" }
         if !snapshotIsCurrent { return "服务数据已过期，请刷新后再修改。" }
@@ -58,10 +98,9 @@ final class AppState {
         }
     }
     var totalUsage: Int64? {
-        guard usageAvailable, !applications.isEmpty else { return nil }
-        let values = applications.compactMap { knownUsage($0) }
-        guard values.count == applications.count else { return nil }
-        return UsageFormatter.total(values)
+        guard connected, snapshotIsCurrent, let usage = snapshot?.interfaceUsage,
+              usage.day == Self.localDay() else { return nil }
+        return usage.totalBytes
     }
     func knownUsage(_ app: ApplicationSnapshot) -> Int64? {
         guard usageAvailable,
@@ -69,15 +108,6 @@ final class AppState {
               app.usage.day == Self.localDay(),
               app.usage.uploadedBytes >= 0, app.usage.downloadedBytes >= 0 else { return nil }
         return UsageFormatter.total([app.usage.uploadedBytes, app.usage.downloadedBytes])
-    }
-
-    // The view cancels polling when its window resigns. The client cancels its XPC
-    // await; late replies are discarded and cannot overwrite a newer snapshot.
-    func pollWhileVisible() async {
-        while !Task.isCancelled {
-            await refresh()
-            do { try await Task.sleep(for: .seconds(3)) } catch { return }
-        }
     }
 
     func refresh() async {
@@ -93,6 +123,17 @@ final class AppState {
             connected = true
             connectionError = nil
             everConnected = true
+            if snapshotIsCurrent && !quitRequested { await deliverTrafficAlerts(next) }
+            if snapshotIsCurrent && next.monitoring == .collecting && !quitRequested {
+                await reminderDelivery.deliver(next.notifications) { [weak self] notification in
+                    guard let self else { return false }
+                    // Permission and scheduling calls suspend. Recheck the newest snapshot,
+                    // including pause, expiry and queue changes, before scheduling or ACK.
+                    return self.connected && self.snapshotIsCurrent && !self.quitRequested
+                        && self.snapshot?.monitoring == .collecting
+                        && self.snapshot?.notifications.contains(where: { $0.id == notification.id }) == true
+                }
+            }
         } catch {
             guard !Task.isCancelled, generation == refreshGeneration else { return }
             connected = false
@@ -101,13 +142,41 @@ final class AppState {
     }
 
     func refreshOnce() {
-        perform("正在读取服务状态") { state in await state.refresh() }
+        guard !busy, !refreshing else { return }
+        Task { await refresh() }
+    }
+
+    func checkForUpdates() {
+        guard !updateChecking else { return }
+        updateState = .checking
+        let current = AppVersion.current
+        let system = ProcessInfo.processInfo.operatingSystemVersion
+        let systemVersion = try? AppVersion(version: "\(system.majorVersion).\(system.minorVersion).\(system.patchVersion)")
+        updateTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.updateTask = nil }
+            do {
+                let result = try await UpdateChecker().check(current: current, systemVersion: systemVersion)
+                guard !Task.isCancelled else { return }
+                self.lastUpdateCheckAt = Date()
+                switch result {
+                case .upToDate:
+                    self.updateState = .upToDate
+                case .available(let release):
+                    self.updateState = .available(release)
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.lastUpdateCheckAt = Date()
+                self.updateState = .failed("检查更新失败：\(error.localizedDescription)")
+            }
+        }
     }
 
     func enableAgent() {
         perform("正在启用本地服务") { state in
             try await state.client.enableAgent()
-            state.notice = "注册请求已完成；是否需要系统批准以服务状态和系统设置为准。"
+            state.notice = "服务已启用并请求恢复采集；实际采样状态以最新快照为准。"
             await state.refresh()
         }
     }
@@ -130,7 +199,7 @@ final class AppState {
         }
         perform("正在保存规则") { state in
             try await state.client.saveRule(appKey: appKey, rule: rule)
-            state.notice = "服务已确认接收规则（版本 \(rule.version)）。"
+            state.notice = "提醒配置已持久化（版本 \(rule.version)）。"
             acknowledged()
             await state.refresh()
         }
@@ -145,6 +214,9 @@ final class AppState {
         }
     }
 
+    func reportNotice(_ message: String) { notice = message }
+    func reportError(_ message: String) { errorMessage = message }
+
     func clearMessages() { errorMessage = nil; notice = nil }
 
     func requestQuit() { NSApplication.shared.terminate(nil) }
@@ -157,19 +229,19 @@ final class AppState {
             return
         }
         quitRequested = true
-        perform("正在停止保护") { state in
+        perform("正在停止采集") { state in
             do {
                 try await state.client.stopProtection()
                 reply(true)
             } catch {
                 state.quitRequested = false
-                state.errorMessage = "停止保护失败：\(error.localizedDescription)"
+                state.errorMessage = "停止采集失败：\(error.localizedDescription)"
                 reply(false)
             }
         }
     }
 
-    private func perform(_ name: String, body: @escaping @MainActor (AppState) async throws -> Void) {
+    func perform(_ name: String, body: @escaping @MainActor (AppState) async throws -> Void) {
         guard !busy else { return }
         clearMessages()
         operation = name
@@ -181,7 +253,7 @@ final class AppState {
         }
     }
 
-    // A single local timer invalidates menu-bar values even while the panel does not poll.
+    // Expire stale menu-bar values independently of background polling failures.
     // Use the calendar's day boundary, which also handles daylight-saving transitions.
     private func scheduleExpiry(for generatedAt: Date) {
         expiryTask?.cancel()
@@ -198,7 +270,7 @@ final class AppState {
         }
     }
 
-    private static func localDay() -> String? {
+    static func localDay() -> String? {
         try? LocalDay.key(for: Date(), in: .current)
     }
 }

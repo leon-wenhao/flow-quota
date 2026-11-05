@@ -21,6 +21,7 @@ let package = Package(
         .testTarget(name: "FlowQuotaCoreTests", dependencies: ["FlowQuotaCore"], resources: [.copy("Fixtures")]),
         .testTarget(name: "FlowQuotaStoreTests", dependencies: ["FlowQuotaStore", "FlowQuotaCore"]),
         .testTarget(name: "FlowQuotaPlatformTests", dependencies: ["FlowQuotaPlatform", "FlowQuotaCore"]),
+        .testTarget(name: "FlowQuotaAgentTests", dependencies: ["FlowQuotaAgent", "FlowQuotaStore", "FlowQuotaCore"]),
         .testTarget(name: "FlowQuotaAppTests", dependencies: ["FlowQuotaApp", "FlowQuotaPlatform", "FlowQuotaCore"]),
     ]
 )

@@ -12,6 +12,8 @@
 	<string>Flow Quota</string>
 	<key>CFBundleDisplayName</key>
 	<string>Flow Quota</string>
+	<key>CFBundleIconFile</key>
+	<string>FlowQuota.icns</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

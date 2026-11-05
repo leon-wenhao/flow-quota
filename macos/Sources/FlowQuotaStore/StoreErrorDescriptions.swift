@@ -23,6 +23,9 @@ extension StoreError: LocalizedError {
         case .unknownLease: return "未找到对应的持久化预算，不能释放额度。"
         case .leaseConflict: return "预算请求或结算内容与已保存记录冲突。"
         case .leaseInactive: return "预算已失效，未确认部分继续保守保留。"
+        case .staleTrafficAlertPolicy: return "预警配置版本已变化，请重新获取当前配置。"
+        case .trafficAlertConflict: return "预警事件标识与已保存的内容冲突。"
+        case .unknownTrafficAlert: return "未找到对应的预警事件，无法确认通知调度。"
         case .configuration(let message): return "数据库配置或完整性检查失败：\(message)"
         }
     }

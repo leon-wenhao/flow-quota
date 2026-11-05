@@ -20,11 +20,27 @@ public enum StoreError: Error, Equatable, Sendable {
     case unknownLease(String)
     case leaseConflict
     case leaseInactive
+    case staleTrafficAlertPolicy
+    case trafficAlertConflict
+    case unknownTrafficAlert(String)
     case configuration(String)
 }
 
 /// Shared domain vocabulary. The SQL spelling "exceeded" is retained for schema compatibility.
 public typealias NotificationKind = QuotaNotificationKind
+
+/// One observed additive sample in integer bytes. Validation occurs when recorded.
+public struct UsageIncrement: Sendable {
+    public let identity: AppIdentity
+    public let uploadedBytes: Int64
+    public let downloadedBytes: Int64
+
+    public init(identity: AppIdentity, uploadedBytes: Int64, downloadedBytes: Int64) {
+        self.identity = identity
+        self.uploadedBytes = uploadedBytes
+        self.downloadedBytes = downloadedBytes
+    }
+}
 
 /// Committed grant. Only an unsettled, unexpired grant for the current rule/day
 /// authorizes consumption; IPC callers must enforce those conditions continuously.

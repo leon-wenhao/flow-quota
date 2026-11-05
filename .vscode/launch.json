@@ -1,0 +1,44 @@
+{
+  "configurations": [
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:flow-quota}/macos",
+      "name": "Debug FlowQuota (macos)",
+      "target": "FlowQuota",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug FlowQuota (macos)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:flow-quota}/macos",
+      "name": "Release FlowQuota (macos)",
+      "target": "FlowQuota",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release FlowQuota (macos)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:flow-quota}/macos",
+      "name": "Debug FlowQuotaAgent (macos)",
+      "target": "FlowQuotaAgent",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug FlowQuotaAgent (macos)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:flow-quota}/macos",
+      "name": "Release FlowQuotaAgent (macos)",
+      "target": "FlowQuotaAgent",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release FlowQuotaAgent (macos)"
+    }
+  ]
+}

@@ -1,6 +1,41 @@
 # Quota domain and shared vectors
 
-Status: 2026-11-04. Swift tools 6.0 / macOS 14 minimum, verified with Apple Swift 6.4.2,
+> Reminder-only iteration, 2026-11-05: `.blocked` remains a legacy domain/persistence threshold key for compatibility. It never means a connection was blocked by this iteration. Monitoring readiness and notification delivery are independent, see tasks/005-reminder-monitor.md.
+
+## Current network scope (2026-11-05)
+
+`NetworkState.expensive` means a satisfied `NWPath` with `isExpensive`; it automatically
+counts observed increments. This cost signal does not confirm a phone hotspot, device or
+carrier. `.hotspot` remains an explicit manual mark. `NetworkState.countsTraffic` is true
+for both states, false for `.ordinary` (no automatic counting) and `.unknown` (unavailable
+network state). UI manual controls remain available for ordinary/unknown when the service
+permits changes; expensive hides the redundant mark action and hotspot retains cancellation.
+
+Both counted states share one app/current-local-day usage total and reminder budget. Path
+or mark changes rebuild the sampling baseline without clearing persisted usage, granting a
+fresh allowance or backfilling unknown intervals. Application budgets retain their existing
+structure; schema v3 separately stores independent daily interface totals. A rule
+ACK confirms persistence; reaching a threshold only requests a reminder, never blocking.
+Already observed daily usage remains visible after leaving a counted path when sampling
+and the snapshot remain valid.
+
+Apple's API defines the cost signal: https://developer.apple.com/documentation/network/nwpath/isexpensive.
+Automatic inclusion in this budget is project policy, not hotspot identity detection.
+The headline and menu total use only the independently persisted interface meter; application
+attribution may overlap and is never added together to fill a missing interface total.
+Application reminders continue to use application attribution, not the interface ledger.
+Both ledgers include expensive/manual-hotspot observed intervals for the current local day.
+A missing interface row is unknown; an explicit baseline can establish a valid zero.
+
+Current validation: 164 tests passed (Core 29, Store 39, Platform 48, App 37, Agent 11).
+Both architecture builds and strict signatures pass. This iteration uses simulated counters,
+injected system calls and temporary databases only; no hotspot traffic experiments or
+installed-app interface checks were performed. Prior live results in `implementation-status.md`
+are historical application-sampler evidence, not proof of the new interface meter or billing accuracy.
+
+## Domain implementation background
+
+Historical baseline: 2026-11-04. Swift tools 6.0 / macOS 14 minimum, verified with Apple Swift 6.4.2,
 macOS SDK 27.2, arm64 macOS 27.2. These are domain calculations and an **in-memory**
 reservation model. They do not install a filter, observe traffic, persist budgets, or prove
 real network enforcement/readiness. The Store's durable lease ledger is a separate component.
@@ -19,7 +54,8 @@ All implementation files are in `macos/Sources/FlowQuotaCore/`:
 | `QuotaEvaluation.swift`: `QuotaTransitions.evaluate(...)` | Pure notification proposals against persisted dedup keys. |
 | `QuotaBudgetLedger.swift`: `QuotaBudgetLedger` | One app/day's actor-isolated grants and final settlement. |
 
-Stable base models `Models.swift` and `ServiceModels.swift` are unchanged. `QuotaRule`
+Base models are in `Models.swift` and `ServiceModels.swift`; the latter now includes the
+network scope contract above. `QuotaRule`
 already validates positive optional limits, warning percentages 1...99, and positive versions.
 `DailyUsage.totalBytes` already saturates arithmetic overflow. Evaluator rejects either
 negative component before using that total; missing counters are represented by `nil`.
@@ -34,9 +70,9 @@ Precision below one byte is rejected unless excess fractional digits are all zer
 Zero is valid for conversion, but cannot become a finite QuotaRule limit. All persisted or
 interchanged byte counts use nonnegative Int64 values (maximum 9,223,372,036,854,775,807).
 
-`ordinaryNetwork` and `unknownNetwork` never consume hotspot budget. Unknown is an explicit
+`ordinaryNetwork` and `unknownNetwork` never automatically consume the shared budget. Unknown is an explicit
 scope uncertainty, not a claim that unrestricted traffic is safe or protection is ready.
-For hotspot scope, missing usage yields `usageUnavailable`, including for an unlimited app;
+For expensive or manually marked hotspot scope, missing usage yields `usageUnavailable`, including for an unlimited app;
 known usage without a finite rule yields `unlimited`. `countsTraffic` expresses scope only,
 not proof of installed metering. The integration must handle readiness/errors independently.
 
@@ -226,3 +262,8 @@ All added handwritten Swift files are under 300 lines. Exact methods, grouped by
 - `SharedVectorTests.testSharedEvaluations`
 - `SharedVectorTests.testSharedNotificationTransitions`
 - `SharedVectorTests.testSharedBudgetSequences`
+
+
+## 2026-11-05：后台大流量预警补充
+
+在原应用每日规则之外，加入接口每日总量、接口短时、每个应用／系统服务短时三个独立检查。默认 1 GB／200 MB／200 MB，窗口最多 5 分钟，同来源短时冷却 10 分钟，可分别关闭；均为上传＋下载观测量。接口总量不参与原应用每日规则，应用合计也不参与接口预警。窗口可提前触发并记录实际观测时长，跨日／切网／间断不回填。当前日事件兼作通知队列，不扩展为历史报表；细节与边界见 `traffic-alerts.md`。

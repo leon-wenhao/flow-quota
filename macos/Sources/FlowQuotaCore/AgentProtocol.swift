@@ -4,11 +4,17 @@ public enum AgentRequest: Codable, Sendable {
     case snapshot
     case saveRule(appKey: String, rule: QuotaRule)
     case setHotspotOverride(Bool)
+    case startMonitoring
+    case trafficAlertHistory(day: String, offset: Int)
+    case saveTrafficAlertPolicy(TrafficAlertPolicy)
+    case acknowledgeTrafficAlert(id: String)
+    case acknowledgeNotification(QuotaNotificationKey)
     case stopProtection
 }
 
 public enum AgentReply: Codable, Sendable {
     case snapshot(AgentSnapshot)
+    case trafficAlertHistory([TrafficAlertEvent])
     case acknowledged
 }
 

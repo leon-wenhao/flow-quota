@@ -7,25 +7,43 @@ import ServiceManagement
     public init() {}
 
     public func enableAgent() async throws {
+        try await registerAgent(startMonitoring: true)
+    }
+
+    private func registerAgent(startMonitoring: Bool) async throws {
         let service = SMAppService.agent(plistName: AgentEndpoint.launchAgentPlist)
         if service.status != .enabled { try service.register() }
         guard service.status == .enabled else {
             throw PlatformError.unavailable("请在系统设置的登录项中允许 Flow Quota 后台服务，然后重试。")
         }
+        if startMonitoring { try await requireAcknowledgement(.startMonitoring) }
     }
 
     /// Explicit repair for retained ad-hoc helpers after a rebuild. Never used once
     /// a traffic extension is embedded; stopping a real engine needs its own ACK.
     public func repairDevelopmentAgent() async throws {
+        try await repairDevelopmentAgent(startMonitoring: true)
+    }
+
+    /// Development diagnostics may repair registration without starting either sampler.
+    /// The helper must also be launched with FLOW_QUOTA_VERIFY_PAUSED=1 for a cold start.
+    public func repairDevelopmentAgent(startMonitoring: Bool) async throws {
         let app = Bundle.main.bundleURL
         let extensionFolder = app.appendingPathComponent("Contents/Library/SystemExtensions")
         guard Bundle.main.object(forInfoDictionaryKey: "FlowQuotaDevelopmentBuild") as? Bool == true,
               !FileManager.default.fileExists(atPath: extensionFolder.path) else {
             throw PlatformError.unavailable("该构建不能使用开发服务修复；请先通过正式流程停止保护。")
         }
+        guard startMonitoring || ProcessInfo.processInfo.environment["FLOW_QUOTA_VERIFY_PAUSED"] == "1" else {
+            throw PlatformError.unavailable("暂停修复前须设置专用启动环境，避免冷启动时启动采集。")
+        }
         let service = SMAppService.agent(plistName: AgentEndpoint.launchAgentPlist)
         if service.status != .notRegistered { try await service.unregister() }
-        try await enableAgent()
+        try await registerAgent(startMonitoring: startMonitoring)
+    }
+
+    public func acknowledgeNotification(_ key: QuotaNotificationKey) async throws {
+        try await requireAcknowledgement(.acknowledgeNotification(key))
     }
 
     public func fetchSnapshot() async throws -> AgentSnapshot {
@@ -41,6 +59,21 @@ import ServiceManagement
 
     public func setHotspotOverride(_ marked: Bool) async throws {
         try await requireAcknowledgement(.setHotspotOverride(marked))
+    }
+
+    public func fetchTrafficAlertHistory(day: String, offset: Int) async throws -> [TrafficAlertEvent] {
+        guard case .trafficAlertHistory(let events) = try await send(.trafficAlertHistory(day: day, offset: offset)) else {
+            throw PlatformError.malformedReply
+        }
+        return events
+    }
+
+    public func saveTrafficAlertPolicy(_ policy: TrafficAlertPolicy) async throws {
+        try await requireAcknowledgement(.saveTrafficAlertPolicy(policy))
+    }
+
+    public func acknowledgeTrafficAlert(id: String) async throws {
+        try await requireAcknowledgement(.acknowledgeTrafficAlert(id: id))
     }
 
     public func stopProtection() async throws {
@@ -73,7 +106,7 @@ import ServiceManagement
         let data: Data = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 guard completion.install(continuation) else { return }
-                let remote = connection.remoteObjectProxyWithErrorHandler { error in
+                let remote = connection.remoteObjectProxyWithErrorHandler { @Sendable error in
                     completion.fail(error.localizedDescription)
                 }
                 guard let proxy = remote as? any AgentXPCProtocol else {

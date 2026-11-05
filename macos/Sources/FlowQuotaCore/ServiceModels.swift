@@ -1,7 +1,11 @@
 import Foundation
 
 public enum NetworkState: String, Codable, Sendable {
-    case unknown, ordinary, hotspot
+    case unknown, ordinary, hotspot, expensive
+
+    /// Current policy: automatic system cost signals and manual hotspot marks
+    /// share the daily reminder budget. Cost does not establish hotspot identity.
+    public var countsTraffic: Bool { self == .expensive || self == .hotspot }
 }
 
 public enum ProtectionReadiness: String, Codable, Sendable {
@@ -27,13 +31,46 @@ public struct AgentSnapshot: Codable, Sendable {
     public let readiness: ProtectionReadiness
     public let applications: [ApplicationSnapshot]
     public let message: String
+    public let monitoring: MonitoringStatus
+    /// Service-confirmed collection state, distinct from application attribution health.
+    /// Missing on older services; callers must present an unknown state, not infer off.
+    public let samplingEnabled: Bool?
+    public let sampledAt: Date?
+    public let notifications: [ReminderNotification]
+    public let coverageMessage: String
+    public let interfaceUsage: InterfaceUsage?
+    public let interfaceSampledAt: Date?
+    public let interfaceMessage: String
+    public let trafficAlertPolicy: TrafficAlertPolicy?
+    public let trafficAlertEvents: [TrafficAlertEvent]
+    public let pendingTrafficAlerts: [TrafficAlertEvent]
+    public let trafficAlertMessage: String
 
     public init(generatedAt: Date, network: NetworkState, readiness: ProtectionReadiness,
-                applications: [ApplicationSnapshot], message: String) {
+                applications: [ApplicationSnapshot], message: String,
+                monitoring: MonitoringStatus = .unavailable, samplingEnabled: Bool? = nil, sampledAt: Date? = nil,
+                notifications: [ReminderNotification] = [], coverageMessage: String = "",
+                interfaceUsage: InterfaceUsage? = nil, interfaceSampledAt: Date? = nil,
+                interfaceMessage: String = "接口总量尚未就绪。",
+                trafficAlertPolicy: TrafficAlertPolicy? = nil,
+                trafficAlertEvents: [TrafficAlertEvent] = [], pendingTrafficAlerts: [TrafficAlertEvent] = [],
+                trafficAlertMessage: String = "短时预警尚未开始。") {
         self.generatedAt = generatedAt
         self.network = network
         self.readiness = readiness
         self.applications = applications
         self.message = message
+        self.monitoring = monitoring
+        self.samplingEnabled = samplingEnabled
+        self.sampledAt = sampledAt
+        self.notifications = notifications
+        self.coverageMessage = coverageMessage
+        self.interfaceUsage = interfaceUsage
+        self.interfaceSampledAt = interfaceSampledAt
+        self.interfaceMessage = interfaceMessage
+        self.trafficAlertPolicy = trafficAlertPolicy
+        self.trafficAlertEvents = trafficAlertEvents
+        self.pendingTrafficAlerts = pendingTrafficAlerts
+        self.trafficAlertMessage = trafficAlertMessage
     }
 }

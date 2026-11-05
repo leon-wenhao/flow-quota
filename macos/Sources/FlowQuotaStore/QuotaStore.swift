@@ -1,8 +1,8 @@
 import Foundation
 import FlowQuotaCore
 
-/// Protection-service ledger. One actor owns the connection; network callbacks
-/// submit bounded batches through the service, never synchronously write per packet.
+/// Service-owned ledger for observed usage, reminder receipts, and legacy budgets.
+/// One actor owns the connection; callers submit batches, never write per packet.
 public actor QuotaStore {
     let database: SQLiteConnection
     let clock: @Sendable () -> Date
@@ -15,7 +15,7 @@ public actor QuotaStore {
     }
 
     /// Opens/creates a local SQLite file and commits versioned migrations before return.
-    /// Parent directory/permissions belong to the protection service. Throws on any
+    /// Parent directory/permissions belong to the owning service. Throws on any
     /// durability, foreign-key, migration, locking, or filesystem failure.
     public init(path: String) throws {
         let connection = try SQLiteConnection(path: path)
@@ -110,8 +110,10 @@ public actor QuotaStore {
         }
     }
 
-    /// Durable at-most-once claim, true only for the first insert. Delivery is the
-    /// service's responsibility; a crash between claim and OS delivery may lose it.
+    /// Records the caller's acknowledgment after successful OS notification scheduling;
+    /// returns true only for the first receipt. This does not prove visible delivery.
+    /// A crash before acknowledgment may retry scheduling with the same OS identifier.
+    /// Legacy `.blocked` records a reached threshold, not connection blocking.
     public func claimNotification(appKey: String, day: String, kind: NotificationKind,
                                   ruleVersion: Int64) throws -> Bool {
         try validateAppKey(appKey)
@@ -126,12 +128,15 @@ public actor QuotaStore {
         }
     }
 
-    /// Removes prior-day receipts/settled leases; retains unresolved leases and their usage.
+    /// Removes prior-day alert events, interface totals, receipts and settled leases;
+    /// retains unresolved leases and their application usage.
     /// Call on startup/day rollover; today, rules and identities are retained.
     public func prunePreviousDays() throws {
         let today = try StoreDay.label(at: clock(), calendar: calendar)
         try StoreDay.validate(today)
         try database.transaction {
+            try database.execute("DELETE FROM traffic_alert_events WHERE day < ?", [.text(today)])
+            try database.execute("DELETE FROM daily_interface_usage WHERE day < ?", [.text(today)])
             try database.execute("DELETE FROM budget_leases WHERE day < ? AND uploaded_bytes IS NOT NULL", [.text(today)])
             try database.execute("DELETE FROM notification_receipts WHERE day < ?", [.text(today)])
             // Keep the complete charged balance for days with uncertain consumers.

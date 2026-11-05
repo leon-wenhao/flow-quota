@@ -28,10 +28,11 @@ xcrun swift build "${PACKAGE_OPTIONS[@]}" --scratch-path "$SCRATCH" \
 BIN="$(xcrun swift build "${PACKAGE_OPTIONS[@]}" --scratch-path "$SCRATCH" \
     --disable-sandbox --configuration "$CONFIG" --arch "$ARCH" --show-bin-path)"
 APP="$ROOT/.artifacts/$ARCH/Flow Quota.app"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Library/LaunchAgents"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Library/LaunchAgents" "$APP/Contents/Resources"
 cp "$BIN/FlowQuota" "$APP/Contents/MacOS/FlowQuota"
 cp "$BIN/FlowQuotaAgent" "$APP/Contents/MacOS/FlowQuotaAgent"
 cp "$ROOT/macos/Configuration/Info.plist" "$APP/Contents/Info.plist"
+cp "$ROOT/assets/brand/FlowQuota.icns" "$APP/Contents/Resources/FlowQuota.icns"
 cp "$ROOT/macos/Configuration/local.flowquota.agent.plist" "$APP/Contents/Library/LaunchAgents/"
 # Local ad-hoc identity enables exact-binary XPC verification; it grants no
 # NetworkExtension entitlement and is not Developer ID signing/notarization.
