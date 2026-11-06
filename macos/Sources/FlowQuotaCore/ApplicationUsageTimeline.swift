@@ -53,11 +53,13 @@ public struct ApplicationUsageTimeline: Codable, Sendable, Equatable {
     public let bucketMinutes: Int
     public let buckets: [ApplicationUsageBucket]
     public let clashNotice: String?
+    public let sourcesResolved: Bool?
 
-    public init(query: ApplicationTimelineQuery, bucketMinutes: Int, buckets: [ApplicationUsageBucket], clashNotice: String? = nil) {
+    public init(query: ApplicationTimelineQuery, bucketMinutes: Int, buckets: [ApplicationUsageBucket], clashNotice: String? = nil, sourcesResolved: Bool? = nil) {
         self.query = query
         self.bucketMinutes = bucketMinutes
         self.buckets = buckets
         self.clashNotice = clashNotice
+        self.sourcesResolved = sourcesResolved
     }
 }

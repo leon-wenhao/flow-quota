@@ -64,14 +64,14 @@ struct QuotaEditor: View {
             Divider()
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("今日应用归因")
+                    Text("今日应用用量")
                     Spacer()
                     Text("上传＋下载")
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 Text(UsageFormatter.bytes(state.knownUsage(application, category: category)))
                     .font(.system(size: 30, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .accessibilityLabel("今日应用归因用量：\(UsageFormatter.bytes(state.knownUsage(application, category: category)))")
+                    .accessibilityLabel("今日应用用量用量：\(UsageFormatter.bytes(state.knownUsage(application, category: category)))")
                 if sharedSource {
                     Label("共享服务 · 原始请求方未确认", systemImage: "info.circle")
                         .font(.caption).foregroundStyle(.secondary)

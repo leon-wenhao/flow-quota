@@ -24,7 +24,8 @@ public struct MihomoProxyAccumulator: Sendable {
     private var day: String?
     private var buckets: [TrafficCategory: Bucket] = [:]
     private let resolver = MihomoSourceResolver()
-    private var minuteHistory = MihomoMinuteHistory()
+    public private(set) var sourceIncrements: [ClashUsageSource] = []
+    public private(set) var sourceIntervalStart: UInt64?
 
     public init() {}
 
@@ -32,11 +33,14 @@ public struct MihomoProxyAccumulator: Sendable {
         resetBaseline()
         day = nil
         buckets = [:]
-        minuteHistory.reset()
+        sourceIncrements = []
+        sourceIntervalStart = nil
     }
 
     /// Faults, pause and path changes invalidate continuity, never erase earned subtotals.
     public mutating func resetBaseline() {
+        sourceIncrements = []
+        sourceIntervalStart = nil
         previousTotals = nil
         previousConnections = [:]
         scope = nil
@@ -52,12 +56,14 @@ public struct MihomoProxyAccumulator: Sendable {
             reset()
             day = currentDay
         }
-        minuteHistory.setDay(currentDay)
+        sourceIncrements = []
+        sourceIntervalStart = nil
         let currentScope = "\(currentDay):\(category?.rawValue ?? "unknown"):\(scope)"
         let continuous = self.scope == currentScope && previousTotals.map {
             $0.upload <= response.uploadTotal && $0.download <= response.downloadTotal
         } == true && previousUptime.map { uptime > $0 && uptime - $0 <= 8_000_000_000 } == true
             && previousDate.map { (0...8).contains(capturedAt.timeIntervalSince($0)) } == true
+        sourceIntervalStart = continuous && category != nil ? previousUptime : nil
         var bucket = category.flatMap { buckets[$0] } ?? Bucket()
         // Closed connections retain their observed use but no longer appear active.
         bucket.sources = bucket.sources.mapValues { copying($0, count: 0) }
@@ -94,12 +100,13 @@ public struct MihomoProxyAccumulator: Sendable {
                 upload: try adding(prior?.uploadedBytes ?? 0, upload),
                 download: try adding(prior?.downloadedBytes ?? 0, download))
         }
-        if let category {
-            for delta in minuteDeltas.values {
-                try minuteHistory.record(source: delta.source, category: category, at: capturedAt,
-                    upload: delta.upload, download: delta.download)
-            }
-        }
+        sourceIncrements = try ClashUsageBreakdown.aggregate(minuteDeltas.values.map { delta in
+            let source = delta.source
+            // A recognized site is one display source across caller processes.
+            return ClashUsageSource(id: source.siteName.map { "site:" + $0 } ?? source.id,
+                name: source.displayName, uploadedBytes: delta.upload, downloadedBytes: delta.download,
+                identified: source.siteName != nil || source.appIdentity != nil)
+        })
         previousTotals = (response.uploadTotal, response.downloadTotal)
         previousConnections = nextConnections
         self.scope = currentScope
@@ -127,16 +134,6 @@ public struct MihomoProxyAccumulator: Sendable {
             uploadedBytes: bucket?.upload ?? 0, downloadedBytes: bucket?.download ?? 0,
             sources: sources, sampledAt: bucket?.sampledAt,
             message: (message.isEmpty ? detail : message) + limit, day: requestedDay, category: category)
-    }
-
-    /// Aggregates retained only in this service session; caller validates query dates first.
-    public func timelineRows(_ query: ApplicationTimelineQuery) throws -> [ApplicationUsageBucket] {
-        try minuteHistory.rows(for: query)
-    }
-
-    public func timelineNotice(for category: TrafficCategory) -> String {
-        minuteHistory.notice(for: category)
-            + (buckets[category]?.limited == true ? " 来源已达 128 项上限，部分明细未展示。" : "")
     }
 
     private func copying(_ source: MihomoProxySource, count: Int,

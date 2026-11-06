@@ -21,15 +21,17 @@ struct MacTrafficTimelineTests {
             downloadedBytes: 775_751_613, sampleCount: 29),
             ApplicationUsageBucket(appKey: nil, name: "Logi Options+（Clash）", startMilliseconds: timestamp,
                 uploadedBytes: 1_000, downloadedBytes: 322_900_000, sampleCount: 29, clashSourceID: "logi")]
-        let result = try ApplicationTimelineGrouping.make(query: query, rows: rows)
+        let resolved = try ClashMinuteBreakdown.resolve(processes: [rows[0]], sources: [ClashMinuteUsage(minute: timestamp,
+            source: ClashUsageSource(id: "logi", name: rows[1].name, uploadedBytes: 1_000, downloadedBytes: 322_900_000))])
+        let result = ApplicationUsageTimeline(query: query, bucketMinutes: 5, buckets: resolved.rows, sourcesResolved: true)
         let processes = try #require(ApplicationTimelinePresentation.make(result))
-        let clash = try #require(ApplicationTimelinePresentation.make(result, scope: .clash))
         #expect(meter.summary.downloadedBytes == 790_343_680)
         #expect(meter.summary.totalBytes == 832_069_632)
         #expect(meter.segments.filter { $0.direction == .download }.reduce(0) { $0 + $1.bytes } == 790_343_680)
         #expect(processes.summary.totalBytes == 805_815_369)
-        #expect(processes.sources.first?.name.contains("来源应用待确认") == true)
-        #expect(clash.summary.downloadedBytes == 322_900_000)
+        #expect(processes.sources.first?.name == "其他未识别（Clash）")
+        #expect(processes.sources.first { $0.name == "Logi Options+（Clash）" }?.downloadedBytes == 322_900_000)
+        #expect(processes.sources.count == 2)
         // No subtraction from the meter and no kernel + API double counting.
         #expect(TrafficMeasurementComparison(total: meter.summary.totalBytes, sources: processes.summary.totalBytes)
                 == .unexplained(26_254_263))
@@ -116,7 +118,7 @@ struct MacTrafficTimelineTests {
         }
         Text("下载 790.3 MB · 上传 41.7 MB").font(.subheadline)
         UsageTimelineChart(data: meter, processes: processes, isInterface: true)
-        TrafficSourceDetailsView(processes: processes, clash: nil, total: meter.summary)
+        TrafficSourceDetailsView(processes: processes)
         UsageChartsView(data: processes)
     }
     .padding(20).frame(width: 700, height: 900)

@@ -1,7 +1,7 @@
 import Foundation
 
 enum StoreSchema {
-    static let currentVersion: Int64 = 8
+    static let currentVersion: Int64 = 9
     static let nonemptyKey = "typeof(app_key) = 'text' AND length(trim(app_key)) > 0"
 
     static func migrate(_ database: SQLiteConnection) throws {
@@ -49,6 +49,10 @@ enum StoreSchema {
                       AND length(CAST(applications_json AS BLOB)) <= 524288))
                     """)
                 try database.execute("PRAGMA user_version = 8")
+            }
+            if version < 9 {
+                try database.execute(versionNine)
+                try database.execute("PRAGMA user_version = 9")
             }
             // Reject legacy collisions explicitly; never merge or discard usage.
             let keys = try database.query("SELECT app_key FROM applications") { $0.text(0) }

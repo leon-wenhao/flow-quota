@@ -4,7 +4,6 @@ import SwiftUI
 struct UsageTimelineChart: View {
     let data: ApplicationTimelinePresentation
     var processes: ApplicationTimelinePresentation?
-    var clash: ApplicationTimelinePresentation?
     var isInterface = false
     @Environment(\.chartTooltipViewport) private var tooltipViewport
     @State private var hoverLocation: CGPoint?
@@ -18,7 +17,7 @@ struct UsageTimelineChart: View {
                     yStart: .value("字节", Double(segment.lower)), yEnd: .value("字节", Double(segment.upper)))
                     .foregroundStyle(color(segment.source.id))
                     .accessibilityLabel("\(time(slot.start))–\(time(slot.end))，\(segment.source.name)\(segment.direction.rawValue)")
-                    .accessibilityValue("\(UsageFormatter.bytes(segment.bytes))，\(isInterface ? "接口总量" : "进程观测，可能重叠")")
+                    .accessibilityValue("\(UsageFormatter.bytes(segment.bytes))，\(isInterface ? "接口总量" : "来源用量")")
             }
             ForEach(data.summary.slots.filter { $0.sampleCount > 0 }) { slot in
                 ForEach(UsageDirection.allCases) { direction in
@@ -74,7 +73,7 @@ struct UsageTimelineChart: View {
                 let tooltip = UsageTimelineTooltip(selection: selection,
                     sourceIDs: (processes ?? data).sources.map(\.id),
                     processSelection: processes?.selection(at: date, bytes: bytes),
-                    clashSelection: clash?.selection(at: date, bytes: bytes), isInterface: isInterface)
+                    isInterface: isInterface)
                 let tooltipSize = CGSize(width: min(UsageTimelineTooltip.width, max(0, size.width - 8)), height: tooltip.height)
                 let origin = ChartTooltipLayout.origin(at: point, size: tooltipSize, bounds: bounds)
                 tooltip

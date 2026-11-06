@@ -20,7 +20,7 @@ struct MihomoProxyCard: View {
             Text(proxy.message).font(.caption).foregroundStyle(.secondary)
             Text("Clash 标签表示连接由 Mihomo 处理，含 DIRECT 规则；不表示必经代理节点。采集状态指 Flow Quota，不是 Clash 的开关状态。")
                 .font(.caption).foregroundStyle(.secondary)
-            Text("来源明细见应用用量列表；只计本次服务运行期间的连续观测，服务重启后重新开始，不补算未知区间。")
+            Text("来源分钟汇总保留在本机当天账本，服务重启后仍可查看。此诊断状态及活动连接只代表本次运行；间断不补量，非当前日数据统一清理。")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }

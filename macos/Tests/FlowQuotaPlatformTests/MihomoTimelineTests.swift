@@ -21,64 +21,44 @@ struct MihomoTimelineTests {
             category: category, uptime: UInt64(second + 1) * 1_000_000_000)
     }
 
-    @Test func sessionMinutesMatchListAndOnlyContinuousIntervalsAppear() throws {
+    @Test func onlyContinuousFrameDeltasAreOfferedForPersistence() throws {
         var accumulator = MihomoProxyAccumulator()
         _ = try sample(&accumulator, bytes: 100, second: 58)
-        #expect(try accumulator.timelineRows(query()).isEmpty)
+        #expect(accumulator.sourceIncrements.isEmpty)
         _ = try sample(&accumulator, bytes: 110, second: 60)
+        #expect(accumulator.sourceIncrements.first?.uploadedBytes == 10)
+        #expect(accumulator.sourceIncrements.first?.name == "YouTube（Clash）")
+        #expect(accumulator.sourceIntervalStart == 59_000_000_000)
         accumulator.resetBaseline()
+        #expect(accumulator.sourceIncrements.isEmpty)
         _ = try sample(&accumulator, bytes: 1_000, second: 62)
-        let snapshot = try sample(&accumulator, bytes: 1_010, second: 64)
-        let rows = try accumulator.timelineRows(query())
-        #expect(rows.count == 1)
-        #expect(rows.first?.name == snapshot.sources.first?.displayName)
-        #expect(rows.first?.name == "YouTube（Clash）")
-        #expect(rows.first?.uploadedBytes == 20)
-        #expect(rows.first?.downloadedBytes == snapshot.sources.first?.downloadedBytes)
-        #expect(rows.first?.sampleCount == 2)
-        #expect(rows.first?.appKey == nil)
-        #expect(rows.first?.clashSourceID == snapshot.sources.first?.id)
-        // A gap and unknown network never allocate the missing interval.
+        #expect(accumulator.sourceIncrements.isEmpty)
+        _ = try sample(&accumulator, bytes: 1_010, second: 64)
+        #expect(accumulator.sourceIncrements.first?.downloadedBytes == 20)
         _ = try sample(&accumulator, bytes: 9_000, second: 120)
+        #expect(accumulator.sourceIncrements.isEmpty)
         _ = try sample(&accumulator, bytes: 9_000, second: 122)
+        #expect(accumulator.sourceIncrements.first?.uploadedBytes == 0)
         _ = try sample(&accumulator, bytes: 10_000, second: 124, category: nil)
-        let after = try accumulator.timelineRows(query())
-        #expect(after.reduce(0) { $0 + $1.uploadedBytes } == 20)
-        #expect(after.reduce(0) { $0 + $1.sampleCount } == 3) // Observed zero is retained.
+        #expect(accumulator.sourceIncrements.isEmpty)
     }
 
-    @Test func categoriesDayRollbackAndRestartCannotLeakMinutes() throws {
+    @Test func categoriesDayRollbackAndRestartRebuildDeltaBaseline() throws {
         var accumulator = MihomoProxyAccumulator()
         _ = try sample(&accumulator, bytes: 100, second: 0)
         _ = try sample(&accumulator, bytes: 110, second: 2)
+        #expect(accumulator.sourceIncrements.first?.uploadedBytes == 10)
         _ = try sample(&accumulator, bytes: 1_000, second: 4, category: .ordinary)
+        #expect(accumulator.sourceIncrements.isEmpty)
         _ = try sample(&accumulator, bytes: 1_030, second: 6, category: .ordinary)
-        #expect(try accumulator.timelineRows(query()).first?.uploadedBytes == 10)
-        #expect(try accumulator.timelineRows(query(.ordinary)).first?.uploadedBytes == 30)
+        #expect(accumulator.sourceIncrements.first?.uploadedBytes == 30)
         _ = try sample(&accumulator, bytes: 2_000, second: 86_400)
-        #expect(try accumulator.timelineRows(query()).isEmpty)
+        #expect(accumulator.sourceIncrements.isEmpty)
         _ = try sample(&accumulator, bytes: 2_100, second: 0)
-        #expect(try accumulator.timelineRows(query()).isEmpty)
+        #expect(accumulator.sourceIncrements.isEmpty)
         _ = try sample(&accumulator, bytes: 2_110, second: 2)
         accumulator.reset()
-        #expect(try accumulator.timelineRows(query()).isEmpty)
-        #expect(try MihomoProxyAccumulator().timelineRows(query()).isEmpty)
-    }
-
-    @Test func capacityRetainsEarnedRowsAndWarnsWithoutInventedAttribution() throws {
-        var history = MihomoMinuteHistory(maximumRows: 1)
-        history.setDay(try day)
-        let source = MihomoProxySource(id: "site:youtube", displayName: "YouTube（Clash）", connectionCount: 1,
-            uploadedBytes: 0, downloadedBytes: 0)
-        try history.record(source: source, category: .metered, at: origin, upload: 1, download: 2)
-        try history.record(source: source, category: .metered, at: origin.addingTimeInterval(60), upload: 10, download: 20)
-        #expect(history.notice(for: .metered).contains("容量上限"))
-        #expect(!history.notice(for: .ordinary).contains("容量上限"))
-        #expect(try history.rows(for: query()).first?.uploadedBytes == 1)
-        try history.record(source: source, category: .metered, at: origin.addingTimeInterval(2), upload: 3, download: 4)
-        #expect(try history.rows(for: query()).first?.uploadedBytes == 4)
-        history.setDay("2001-01-01")
-        #expect(try history.rows(for: query()).isEmpty)
-        #expect(!history.notice(for: .metered).contains("容量上限"))
+        #expect(accumulator.sourceIncrements.isEmpty)
+        #expect(MihomoProxyAccumulator().sourceIncrements.isEmpty)
     }
 }

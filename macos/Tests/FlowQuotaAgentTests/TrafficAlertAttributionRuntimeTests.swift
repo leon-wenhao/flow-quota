@@ -77,3 +77,36 @@ private func withAttributionRuntime(_ body: (AgentRuntime, QuotaStore, String, D
         #expect(interfaceAlert.applications?.notice != nil)
     }
 }
+
+extension AgentRuntime {
+    fileprivate func injectClashAlertEvidence(_ sources: [ClashUsageSource], scope: String) throws {
+        try clashAlertWindow.consume([], start: 1_000_000_000, end: 2_000_000_000, scope: scope, windowSeconds: 180)
+        try clashAlertWindow.consume(sources, start: 2_000_000_000, end: 3_000_000_000, scope: scope, windowSeconds: 180)
+    }
+}
+
+@Test func clashBurstFreezesEightHundredMegabytesAsChildrenWithoutChangingTriggerIdentity() async throws {
+    try await withAttributionRuntime { runtime, store, day, now in
+        let policy = try TrafficAlertPolicy(dailyInterfaceBytes: nil, interfaceBurstBytes: nil,
+            applicationBurstBytes: 700_000_000, windowSeconds: 180, cooldownSeconds: 600, version: 2)
+        try await store.saveTrafficAlertPolicy(policy)
+        let kernel = AppIdentity(key: "exec:/Library/Application Support/clash-verge-service/cores/verge-mihomo", name: "Mihomo")
+        try await store.registerApplication(kernel)
+        await runtime.evaluateApplicationAlerts([], day: day, continuous: false, pathGeneration: 7,
+            generation: 0, now: now, uptime: 2_000_000_000)
+        try await runtime.injectClashAlertEvidence([
+            ClashUsageSource(id: "youtube", name: "YouTube（Clash）", uploadedBytes: 0, downloadedBytes: 300_000_000),
+            ClashUsageSource(id: "huya", name: "虎牙（Clash）", uploadedBytes: 0, downloadedBytes: 300_000_000)],
+            scope: "metered:\(day):7:2")
+        await runtime.evaluateApplicationAlerts([UsageIncrement(identity: kernel, uploadedBytes: 0, downloadedBytes: 800_000_000)],
+            day: day, continuous: true, pathGeneration: 7, generation: 0, now: now, uptime: 3_000_000_000)
+        let alert = try #require(try await store.trafficAlertEvents(day: day).first)
+        #expect(alert.kind == .applicationBurst && alert.sourceKey == kernel.key)
+        #expect(alert.observedBytes == 800_000_000)
+        #expect(alert.applications?.items.count == 1)
+        #expect(alert.applications?.displaySources.count == 3)
+        #expect(alert.applications?.displaySources.first { !$0.identified }?.downloadedBytes == 200_000_000)
+        #expect(alert.applications?.displaySources.reduce(0) { $0 + $1.downloadedBytes } == 800_000_000)
+        try alert.validate()
+    }
+}

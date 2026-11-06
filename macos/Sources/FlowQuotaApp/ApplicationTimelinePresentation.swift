@@ -45,10 +45,8 @@ struct ApplicationTimelinePresentation {
     let slotSources: [[UsageApplicationSource]]
     let clashNotice: String?
 
-    enum Scope { case processes, clash }
-
-    static func make(_ result: ApplicationUsageTimeline, scope: Scope = .processes) -> ApplicationTimelinePresentation? {
-        let scopedRows = result.buckets.filter { scope == .clash ? $0.clashSourceID != nil : $0.clashSourceID == nil }
+    static func make(_ result: ApplicationUsageTimeline) -> ApplicationTimelinePresentation? {
+        let scopedRows = result.buckets.filter { result.sourcesResolved == true || $0.clashSourceID == nil }
         let query = result.query
         let duration = query.end.timeIntervalSince(query.start)
         guard query.start.timeIntervalSince1970.isFinite, duration.isFinite,

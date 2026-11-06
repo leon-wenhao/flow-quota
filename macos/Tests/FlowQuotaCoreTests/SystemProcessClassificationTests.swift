@@ -131,9 +131,9 @@ final class SystemProcessClassificationTests: XCTestCase {
         let result = SystemProcessClassification(identity: identity)
         XCTAssertEqual(result.category, .sharedProxy)
         XCTAssertEqual(result.displayName, "Clash 代理内核（来源应用待确认）")
-        XCTAssertTrue(result.detail.contains("原始应用未完全确认"))
-        XCTAssertTrue(result.detail.contains("重复计量"))
-        XCTAssertTrue(result.detail.contains("不与内核用量再次相加"))
+        XCTAssertTrue(result.detail.contains("其他未识别"))
+        XCTAssertTrue(result.detail.contains("协议差异"))
+        XCTAssertTrue(result.detail.contains("父项不再次加入"))
         XCTAssertEqual(result.identity, identity)
         for key in ["exec:/tmp/verge-mihomo", "exec:" + path + ".copy",
                     "exec:" + path + "/", "app:" + path, "exec:/usr/local/bin/mihomo"] {

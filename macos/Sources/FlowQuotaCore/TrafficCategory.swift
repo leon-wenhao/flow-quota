@@ -38,14 +38,17 @@ public struct TrafficCategorySnapshot: Codable, Sendable {
     public let trafficAlertEvents: [TrafficAlertEvent]
     /// Nil on older services; empty on v6 before the first measured interval.
     public let interfaceUsageMinutes: [InterfaceUsageMinute]?
-    /// Ephemeral Clash attribution, never part of the durable application ledger.
+    /// Current-session controller diagnostics. Durable display sources are separate.
     public let mihomoProxy: MihomoProxySnapshot?
+    public let clashBreakdown: ClashUsageBreakdown?
+    public let clashSourceError: String?
+    public let clashSourceObservations: [ClashUsageSource]?
 
     public init(category: TrafficCategory, applications: [ApplicationSnapshot], applicationsAvailable: Bool,
                 sampledAt: Date?, interfaceUsage: InterfaceUsage?, interfaceSampledAt: Date?,
                 interfaceMessage: String, trafficAlertPolicy: TrafficAlertPolicy,
                 trafficAlertEvents: [TrafficAlertEvent], interfaceUsageMinutes: [InterfaceUsageMinute]? = nil,
-                mihomoProxy: MihomoProxySnapshot? = nil) {
+                mihomoProxy: MihomoProxySnapshot? = nil, clashBreakdown: ClashUsageBreakdown? = nil, clashSourceError: String? = nil, clashSourceObservations: [ClashUsageSource]? = nil) {
         self.category = category
         self.applications = applications
         self.applicationsAvailable = applicationsAvailable
@@ -57,6 +60,9 @@ public struct TrafficCategorySnapshot: Codable, Sendable {
         self.trafficAlertEvents = trafficAlertEvents
         self.interfaceUsageMinutes = interfaceUsageMinutes
         self.mihomoProxy = mihomoProxy
+        self.clashBreakdown = clashBreakdown
+        self.clashSourceError = clashSourceError
+        self.clashSourceObservations = clashSourceObservations
     }
 }
 

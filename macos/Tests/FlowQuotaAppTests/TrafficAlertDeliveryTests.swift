@@ -63,12 +63,12 @@ func trafficEvent(kind: TrafficAlertKind = .interfaceBurst) throws -> TrafficAle
 @MainActor @Test func trafficAlertNotificationExplainsActualIntervalAndUnconfirmedSource() throws {
     let request = SystemReminderScheduler.request(for: try trafficEvent(kind: .applicationBurst))
     #expect(request.content.body.contains("连续观测 2 秒"))
-    #expect(request.content.body.contains("原始请求方未必可确认"))
+    #expect(!request.content.body.contains("归因"))
     #expect(request.content.body.contains("12 GB"))
     #expect(!request.content.body.contains("已阻断"))
     let total = SystemReminderScheduler.request(for: try trafficEvent(kind: .dailyInterface))
     #expect(total.content.body.contains("今日累计"))
-    #expect(total.content.body.contains("来源未确认"))
+    #expect(total.content.body.contains("Mac 总流量"))
 }
 
 @Test func trafficAlertDraftRejectsInvalidEnabledInputAndSupportsAllOff() throws {

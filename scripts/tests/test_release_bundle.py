@@ -108,6 +108,10 @@ class ReleaseBundleTests(unittest.TestCase):
         for text in ("功能概述", "macOS 14.0", "arm64", "x86_64", "ad-hoc", "公证",
                      "隐私与安全性", "仍要打开", "不阻断连接"):
             self.assertIn(text, notes)
+        for text in ("其他未识别（Clash）", "800MB", "重启后仍保留", "触发当时", "用量详情"):
+            self.assertIn(text, notes)
+        for obsolete in ("Clash 识别来源单列辅助明细", "上传、下载分别显示未识别／计量差额"):
+            self.assertNotIn(obsolete, notes)
         self.assertNotIn("xattr", notes)
         self.assertNotIn("spctl", notes)
 

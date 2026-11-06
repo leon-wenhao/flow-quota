@@ -17,9 +17,10 @@ struct ApplicationListView: View {
                     .help("按当前用量重新排序；后台刷新保留应用位置")
             }
             .padding(.bottom, 6)
-            Text(state.clashAttributionNotice)
-                .font(.caption2).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 8)
+            if let failure = state.clashSourceFailure {
+                Text(failure).font(.caption2).foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 8)
+            }
             DailyTrafficOverview(state: state)
             Divider()
             ScrollView {
@@ -41,17 +42,7 @@ struct ApplicationListView: View {
                         }
                         Divider()
                     }
-                    if !state.clashUsageItems.isEmpty {
-                        DisclosureGroup("Clash 识别来源（辅助明细，不重复计入总量）") {
-                            ForEach(state.clashUsageItems) { item in
-                                if case .clash(let source, let usage) = item {
-                                    ClashSourceRow(source: source, usage: usage,
-                                        status: state.categoryMihomoProxy?.status ?? .unavailable)
-                                }
-                            }
-                        }
-                        .padding(.vertical, 10)
-                    }
+
                 }
             }
             .accessibilityLabel("应用用量列表")

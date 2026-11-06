@@ -44,9 +44,9 @@ struct TrafficAlertApplicationsView: View {
                 column("合计", width: 72)
             }
             .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            if snapshot.items.count > 8 {
-                ScrollView { rows(snapshot.items) }.frame(height: 248)
-            } else { rows(snapshot.items) }
+            if snapshot.displaySources.count > 8 {
+                ScrollView { rows(snapshot.displaySources) }.frame(height: 248)
+            } else { rows(snapshot.displaySources) }
         }
         if let observedAt = snapshot.observedAt {
             Text("\(event.kind == .dailyInterface ? "快照时间" : "应用观测时间")：\(observedAt.formatted(date: .omitted, time: .standard))")
@@ -57,25 +57,19 @@ struct TrafficAlertApplicationsView: View {
                 .foregroundStyle(.orange)
         }
         if let notice = snapshot.notice { Text(notice).foregroundStyle(.secondary) }
-        if event.kind != .applicationBurst {
-            TrafficMeasurementStatus(total: event.observedBytes,
-                processes: snapshot.observedAt == nil || snapshot.omittedCount > 0 ? nil
-                    : UsageFormatter.total(snapshot.items.map(\.totalBytes)))
-        }
-        Text("保留代理内核在内的进程用量；原始应用未确认时不会删除记录。Clash 网站线索不重复加入；接口预警以记录的总量为准。")
-            .foregroundStyle(.secondary)
+
     }
 
-    private func rows(_ items: [TrafficAlertApplication]) -> some View {
+    private func rows(_ items: [ClashUsageSource]) -> some View {
         LazyVStack(spacing: 0) {
             ForEach(items) { item in
                 HStack(alignment: .center, spacing: 10) {
-                    Text(item.displayName).lineLimit(2)
+                    Text(item.name).lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .help(SystemProcessClassification(identity: item.identity).detail + "\n" + item.identity.key)
+                        .help(item.id)
                     column(UsageFormatter.bytes(item.uploadedBytes), width: 66)
                     column(UsageFormatter.bytes(item.downloadedBytes), width: 66)
-                    column(UsageFormatter.bytes(item.totalBytes), width: 72)
+                    column(UsageFormatter.bytes(item.uploadedBytes + item.downloadedBytes), width: 72)
                 }
                 .font(.caption).foregroundStyle(.primary).padding(.vertical, 7)
                 if item.id != items.last?.id { Divider() }

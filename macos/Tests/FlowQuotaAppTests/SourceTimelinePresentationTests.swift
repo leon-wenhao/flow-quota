@@ -15,9 +15,11 @@ import Testing
             uploadedBytes: 10, downloadedBytes: 20, sampleCount: 1),
         ApplicationUsageBucket(appKey: nil, name: "YouTube（Clash）", startMilliseconds: minute,
             uploadedBytes: 30, downloadedBytes: 40, sampleCount: 1, clashSourceID: "site:youtube")]
-    let result = try ApplicationTimelineGrouping.make(query: query, rows: rows, clashNotice: "Session coverage")
+    let resolved = try ClashMinuteBreakdown.resolve(processes: Array(rows.prefix(2)), sources: [ClashMinuteUsage(minute: minute,
+        source: ClashUsageSource(id: "site:youtube", name: "YouTube（Clash）", uploadedBytes: 30, downloadedBytes: 40))])
+    let result = ApplicationUsageTimeline(query: query, bucketMinutes: 5, buckets: resolved.rows, sourcesResolved: true)
     let data = try #require(ApplicationTimelinePresentation.make(result))
-    let names: Set<String> = ["App", "Clash 代理内核（来源应用待确认）"]
+    let names: Set<String> = ["App", "YouTube（Clash）", "其他未识别（Clash）"]
     #expect(Set(data.sources.map(\.name)) == names)
     #expect(Set(data.segments.map { $0.source.name }) == names)
     #expect(data.summary.totalBytes == 1830)
@@ -28,8 +30,5 @@ import Testing
         #expect(Set(pie.slices.map(\.label)) == names)
         #expect(pie.totalBytes == (direction == .upload ? 910 : 920))
     }
-    #expect(data.clashNotice == "Session coverage")
-    let auxiliary = try #require(ApplicationTimelinePresentation.make(result, scope: .clash))
-    #expect(auxiliary.sources.map(\.name) == ["YouTube（Clash）"])
-    #expect(auxiliary.summary.totalBytes == 70)
+    #expect(!data.sources.contains { $0.name.contains("内核") })
 }

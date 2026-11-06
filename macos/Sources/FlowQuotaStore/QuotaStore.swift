@@ -135,7 +135,7 @@ public actor QuotaStore {
         let today = try StoreDay.label(at: clock(), calendar: calendar)
         try StoreDay.validate(today)
         try database.transaction {
-            for table in ["traffic_alert_events", "application_usage_minutes", "interface_usage_minutes", "daily_interface_usage",
+            for table in ["clash_source_usage_minutes", "traffic_alert_events", "application_usage_minutes", "interface_usage_minutes", "daily_interface_usage",
                           "budget_leases", "notification_receipts", "daily_usage"] {
                 // Fixed internal table names; all externally derived values are bound.
                 try database.execute("DELETE FROM \(table) WHERE day <> ?", [.text(today)])

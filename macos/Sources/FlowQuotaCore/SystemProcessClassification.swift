@@ -49,7 +49,7 @@ public struct SystemProcessClassification: Equatable, Sendable {
         case "exec:/Library/Application Support/clash-verge-service/cores/verge-mihomo":
             presentation = (
                 "Clash 代理内核（来源应用待确认）",
-                "保留全部代理进程用量；原始应用未完全确认。Clash 识别来源是其中的辅助线索，不与内核用量再次相加；进程观测与接口可能存在时间或重复计量差异。",
+                "Clash 内核原始用量及整体提醒身份。日常列表将其拆分为已识别来源与其他未识别，保留总量，父项不再次加入；物理接口与进程计数仍可能存在时间或协议差异。",
                 .sharedProxy
             )
         default:

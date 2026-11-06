@@ -38,7 +38,7 @@ struct TrafficCategoryMigrationTests {
         #expect(try await store.trafficAlertEvents(day: fixture.day, category: .ordinary).isEmpty)
         let db = try SQLiteConnection(path: fixture.path)
         #expect(try FrozenAlertVersionThree.evidence(db).dropLast() == before.dropLast())
-        #expect(try db.scalar("PRAGMA user_version") == 8)
+        #expect(try db.scalar("PRAGMA user_version") == 9)
         #expect(try db.query("PRAGMA integrity_check", row: { $0.text(0) }) == ["ok"])
         #expect(try db.query("PRAGMA foreign_key_check", row: { $0.text(0) }).isEmpty)
         try db.close(); try await store.close()

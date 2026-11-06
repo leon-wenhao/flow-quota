@@ -64,8 +64,23 @@ private final class MihomoSamplingFixture: InterfaceCounterReading, @unchecked S
 }
 
 extension QuotaStore {
-    // Same-connection changes catch even writes that leave the final bytes unchanged.
-    fileprivate func mihomoTestChangeCount() throws -> Int64 { try database.scalar("SELECT total_changes()") }
+    fileprivate func setMihomoWriteFault(_ enabled: Bool) throws {
+        if enabled {
+            try database.execute("""
+                CREATE TRIGGER mihomo_fault BEFORE INSERT ON clash_source_usage_minutes
+                BEGIN SELECT RAISE(ABORT, 'simulated disk write failure'); END
+                """)
+        } else { try database.execute("DROP TRIGGER mihomo_fault") }
+    }
+    fileprivate func mihomoOtherLedgerEvidence() throws -> [String] {
+        let tables = ["applications", "daily_usage", "application_usage_minutes", "daily_interface_usage",
+                      "interface_usage_minutes", "traffic_alert_events", "quota_rules", "traffic_alert_settings"]
+        return try tables.flatMap { table in
+            let columns = try database.query("PRAGMA table_info(\(table))") { $0.text(1) }
+            let expressions = columns.map { "quote(\($0))" }.joined(separator: " || '|' || ")
+            return try database.query("SELECT \(expressions) FROM \(table) ORDER BY 1") { table + ":" + $0.text(0) }
+        }
+    }
 }
 
 struct MihomoSamplingTests {
@@ -90,10 +105,10 @@ struct MihomoSamplingTests {
                         category: category, interfaceObservedAt: fixture.origin)
                 }
             }
-            let changes = try await store.mihomoTestChangeCount()
+            let changes = try await store.mihomoOtherLedgerEvidence()
             try await body(runtime, store, fixture)
             #expect(fixture.readCount == 0)
-            #expect(try await store.mihomoTestChangeCount() == changes)
+            #expect(try await store.mihomoOtherLedgerEvidence() == changes)
             #expect(await runtime.sampler == nil)
             #expect(await runtime.samplingTask == nil)
             #expect(await runtime.interfaceTask == nil)
@@ -110,6 +125,23 @@ struct MihomoSamplingTests {
         } catch {
             try? await store.close()
             throw error
+        }
+    }
+
+    @Test func sourceWriteFailureIsVisibleAndRecoveryCannotReplayAnOutage() async throws {
+        try await withRuntime { runtime, store, fixture in
+            try await fixture.feed(100, at: 0, to: runtime)
+            try await store.setMihomoWriteFault(true)
+            try await fixture.feed(110, at: 2, to: runtime)
+            #expect(await runtime.mihomoProxy.status == .stale)
+            #expect(await runtime.mihomoProxy.message.contains("simulated disk write failure"))
+            let day = try LocalDay.key(for: fixture.origin, in: .current)
+            #expect(try await store.dailyClashObservations(day: day, category: .metered).isEmpty)
+            try await store.setMihomoWriteFault(false)
+            try await fixture.feed(1_000, at: 4, to: runtime)
+            #expect(try await store.dailyClashObservations(day: day, category: .metered).isEmpty)
+            try await fixture.feed(1_010, at: 6, to: runtime)
+            #expect(try await store.dailyClashObservations(day: day, category: .metered).first?.uploadedBytes == 10)
         }
     }
 

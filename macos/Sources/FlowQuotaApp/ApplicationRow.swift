@@ -30,7 +30,7 @@ struct ApplicationRow: View {
         Button(action: edit) {
             TrafficSourceRowContent(name: source.displayName, symbol: symbol,
                 status: status, usage: UsageFormatter.bytes(usage),
-                scope: application.rule?.limitBytes.map { "阈值 \(UsageFormatter.bytes($0))" } ?? "每日归因", compact: compact)
+                scope: application.rule?.limitBytes.map { "阈值 \(UsageFormatter.bytes($0))" } ?? "今日用量", compact: compact)
         }
         .buttonStyle(FlowQuotaRowButtonStyle())
         .help("\(source.displayName)\n\(source.detail)")

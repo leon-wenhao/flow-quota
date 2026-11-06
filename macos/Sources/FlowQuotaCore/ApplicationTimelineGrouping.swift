@@ -1,7 +1,7 @@
 import Foundation
 
-/// Preserve every measured process and every independent Clash source. Display
-/// them in separate scopes; merging their byte counts would double-count traffic.
+/// Validate and order bounded timeline rows. The store resolves proxy parents
+/// before calling this; raw evidence remains available through its own query.
 public enum ApplicationTimelineGrouping {
     public static func make(query: ApplicationTimelineQuery, rows: [ApplicationUsageBucket],
                             clashNotice: String? = nil) throws -> ApplicationUsageTimeline {

@@ -32,9 +32,9 @@ extension QuotaStore {
         try ApplicationTimelineGrouping.make(query: query, rows: applicationTimelineRows(query))
     }
 
-    /// Service-internal rows preserving every process, alongside separate session Clash evidence.
+    /// Raw service-internal process rows. Clash display decomposition happens before chart aggregation.
     /// This unranked result is never sent directly over IPC.
-    public func applicationTimelineRows(_ query: ApplicationTimelineQuery) throws -> [ApplicationUsageBucket] {
+    public func applicationTimelineRows(_ query: ApplicationTimelineQuery, bucketMinutes requestedMinutes: Int? = nil) throws -> [ApplicationUsageBucket] {
         try StoreDay.validate(query.day)
         let dayStart = calendar.startOfDay(for: clock())
         guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart),
@@ -49,7 +49,7 @@ extension QuotaStore {
         guard start % 60_000 == 0, end % 60_000 == 0 else {
             throw StoreError.configuration("应用分时查询须按分钟对齐")
         }
-        let bucketMinutes = query.bucketMinutes
+        let bucketMinutes = requestedMinutes ?? query.bucketMinutes
         let step = Int64(bucketMinutes) * 60_000
         var bindings: [SQLValue] = [.integer(start), .integer(step), .text(query.day),
                                       .text(query.category.rawValue), .integer(start), .integer(end)]

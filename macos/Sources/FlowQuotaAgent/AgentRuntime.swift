@@ -26,6 +26,7 @@ actor AgentRuntime {
     var interfaceAlertWindow = TrafficAlertWindow()
     var applicationAlertWindow = TrafficAlertWindow()
     var alertAttributionWindow = TrafficAlertAttributionWindow()
+    var clashAlertWindow = ClashAlertSourceWindow()
     var alertAttributionMessage = ""
     var trafficAlertWrites = TrafficAlertWriteBuffer()
     var trafficAlertEpoch: UInt64 = 0
@@ -60,13 +61,11 @@ actor AgentRuntime {
         switch request {
         case .applicationTimeline(let query):
             try await pruneIfNeeded(day: try LocalDay.key(for: Date(), in: .current))
-            let rows = try await store.applicationTimelineRows(query)
+            let timeline = try await store.sourceTimeline(query)
             guard query.day == (try LocalDay.key(for: Date(), in: .current)) else {
                 throw PlatformError.unavailable("应用分时查询日期已变化，请刷新。")
             }
-            let clash = try mihomoAccumulator.timelineRows(query)
-            return .applicationTimeline(try ApplicationTimelineGrouping.make(query: query, rows: rows + clash,
-                clashNotice: mihomoAccumulator.timelineNotice(for: query.category)))
+            return .applicationTimeline(timeline)
         case .snapshot:
             return .snapshot(try await snapshot())
         case .trafficAlertDetails(let category, let day, let id):

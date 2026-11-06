@@ -29,7 +29,7 @@ extension AgentRuntime {
     }
 
     func ingestMihomo(_ response: MihomoAPIResponse, generation: UInt64,
-                      capturedAt: Date = Date(), requestScope: String? = nil) {
+                      capturedAt: Date = Date(), requestScope: String? = nil) async {
         guard generation == samplingGeneration else { return }
         do {
             let path = observeNetwork()
@@ -39,10 +39,31 @@ extension AgentRuntime {
                 return
             }
             var next = mihomoAccumulator
+            let uptime = samplingTime()
             let snapshot = try next.consume(response, scope: scope, capturedAt: capturedAt,
-                category: path.state.trafficCategory, uptime: samplingTime())
+                category: path.state.trafficCategory, uptime: uptime)
+            if let category = path.state.trafficCategory {
+                try await store.recordClashSources(next.sourceIncrements, at: capturedAt, category: category)
+            }
+            // Storage may suspend this actor; do not accept a response after pause/path change.
+            guard generation == samplingGeneration, try mihomoScope(path: observeNetwork(), at: capturedAt) == scope else {
+                mihomoAccumulator.resetBaseline()
+                return
+            }
             mihomoAccumulator = next
             mihomoProxy = snapshot
+            if let category = path.state.trafficCategory {
+                do {
+                    let policy = try await store.trafficAlertPolicy(category: category)
+                    guard generation == samplingGeneration else { return }
+                    let day = try LocalDay.key(for: capturedAt, in: .current)
+                    try clashAlertWindow.consume(next.sourceIncrements, start: next.sourceIntervalStart, end: uptime,
+                        scope: "\(category.rawValue):\(day):\(path.generation):\(policy.version)", windowSeconds: policy.windowSeconds)
+                } catch {
+                    clashAlertWindow.reset()
+                    mihomoSamplingFailed(error, generation: generation)
+                }
+            }
         } catch {
             mihomoSamplingFailed(error, generation: generation)
         }
@@ -52,6 +73,7 @@ extension AgentRuntime {
         guard generation == samplingGeneration else { return }
         // Recovery starts at a new baseline; bytes across an outage are unknown.
         mihomoAccumulator.resetBaseline()
+        clashAlertWindow.reset()
         let previous = mihomoProxy
         mihomoProxy = MihomoProxySnapshot(status: previous.sampledAt == nil ? .unavailable : .stale,
             activeConnectionCount: previous.activeConnectionCount,
@@ -63,6 +85,7 @@ extension AgentRuntime {
 
     func pauseMihomoSampling() {
         mihomoAccumulator.resetBaseline()
+        clashAlertWindow.reset()
         let previous = mihomoProxy
         mihomoProxy = MihomoProxySnapshot(status: .paused,
             uploadedBytes: previous.uploadedBytes, downloadedBytes: previous.downloadedBytes,

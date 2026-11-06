@@ -14,8 +14,8 @@ private let clashCoreKey = "exec:/Library/Application Support/clash-verge-servic
     let core = AppIdentity(key: clashCoreKey, name: "verge-mihomo")
     let apps = [chrome, core].map { identity in
         ApplicationSnapshot(identity: identity, rule: nil,
-            usage: DailyUsage(appKey: identity.key, day: day, uploadedBytes: 1_000_000,
-                downloadedBytes: 44_000_000))
+            usage: DailyUsage(appKey: identity.key, day: day, uploadedBytes: identity == core ? 0 : 1_000_000,
+                downloadedBytes: identity == core ? 800_000_000 : 44_000_000))
     }
     let proxy = MihomoProxySnapshot(status: status, sources: [
         MihomoProxySource(id: "youtube", displayName: "YouTube（Clash）", connectionCount: 3,
@@ -30,7 +30,10 @@ private let clashCoreKey = "exec:/Library/Application Support/clash-verge-servic
     let categories = TrafficCategory.allCases.map { category in
         TrafficCategorySnapshot(category: category, applications: apps, applicationsAvailable: true,
             sampledAt: Date(), interfaceUsage: interface, interfaceSampledAt: Date(), interfaceMessage: "Fixture",
-            trafficAlertPolicy: .disabled, trafficAlertEvents: [], mihomoProxy: category == .ordinary ? proxy : nil)
+            trafficAlertPolicy: .disabled, trafficAlertEvents: [], mihomoProxy: category == .ordinary ? proxy : nil,
+            clashBreakdown: category == .ordinary && proxyDay == nil ? try? ClashUsageBreakdown.split(upload: 0, download: 800_000_000,
+                sources: [ClashUsageSource(id: "huya", name: "虎牙直播（Clash）", uploadedBytes: 0, downloadedBytes: 300_000_000),
+                          ClashUsageSource(id: "youtube", name: "YouTube（Clash）", uploadedBytes: 0, downloadedBytes: 300_000_000)]) : nil)
     }
     let client = FakeAgentClient()
     client.state = AgentSnapshot(generatedAt: Date(), network: .ordinary, readiness: .notInstalled,
@@ -42,14 +45,17 @@ private let clashCoreKey = "exec:/Library/Application Support/clash-verge-servic
     return state
 }
 
-@MainActor @Test func clashChildrenStaySeparateWhileKernelAndInterfaceRemainVisible() async throws {
+@MainActor @Test func clashChildrenAndUnknownReplaceParentAcrossListAndMenu() async throws {
     let state = try await attributionState()
-    #expect(state.applicationUsageItems.count == 2)
-    #expect(state.applications.map(\.id) == ["app:/Applications/Google Chrome.app", clashCoreKey])
+    #expect(state.applicationUsageItems.count == 4)
+    let splitItems = state.applicationUsageItems.filter { if case .clash = $0 { true } else { false } }
+    #expect(splitItems.count == 3)
+    #expect(UsageFormatter.total(splitItems.compactMap(\.bytes)) == 800_000_000)
+    #expect(UsageFormatter.total(state.topUsageItems.compactMap(\.bytes)) == 800_000_000)
+    #expect(!state.applicationUsageItems.contains { if case .application(let app, _) = $0 { app.id == clashCoreKey } else { false } })
+    #expect(Set(state.applications.map(\.id)) == Set(["app:/Applications/Google Chrome.app", clashCoreKey]))
     #expect(state.applications.contains { $0.id == clashCoreKey })
-    let proxyNames = state.clashUsageItems.compactMap { item -> String? in
-        if case .clash(let source, _) = item { return source.displayName }; return nil
-    }
+    let proxyNames = state.categoryMihomoProxy?.sources.map(\.displayName)
     #expect(proxyNames == ["YouTube（Clash）", "虎牙直播（Clash）"])
     #expect(state.totalUsage == 2_100_000_000)
     #expect(state.categoryApplications.count == 2) // Durable identities remain intact.
@@ -67,9 +73,9 @@ private let clashCoreKey = "exec:/Library/Application Support/clash-verge-servic
 
 @MainActor @Test func pausedProxySourcesRetainObservedUseAndExplainWhoseStateItIs() async throws {
     let state = try await attributionState(status: .paused)
-    #expect(state.clashUsageItems.first?.bytes == 1_200_000_000)
-    #expect(state.clashAttributionNotice.contains("Flow Quota"))
-    #expect(state.clashAttributionNotice.contains("Clash 本身"))
+    #expect(state.categoryMihomoProxy?.sources.first?.totalBytes == 1_200_000_000)
+    #expect(state.categoryMihomoProxy?.status == .paused)
+    #expect(state.applicationUsageItems.filter { if case .clash = $0 { true } else { false } }.count == 3)
     var order = ApplicationListOrder()
     let ranked = state.applicationUsageItems
     order.reconcile(ranked)

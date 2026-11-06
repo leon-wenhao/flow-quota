@@ -94,8 +94,9 @@ extension QuotaStore {
             TrafficAlertApplication(identity: $0.identity, uploadedBytes: $0.usage.uploadedBytes,
                                     downloadedBytes: $0.usage.downloadedBytes)
         }, observedAt: observedAt, omittedCount: max(0, rows.count - 128))
-        try applications.validate()
-        return applications
+        let resolved = applications.resolvingClash(try dailyClashBreakdown(day: day, category: category)?.sources ?? [])
+        try resolved.validate()
+        return resolved
     }
 
     private func trafficAlert(id: String) throws -> TrafficAlertEvent? {

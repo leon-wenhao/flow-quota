@@ -14,6 +14,7 @@ extension AgentRuntime {
         interfaceAlertWindow.reset()
         applicationAlertWindow.reset()
         alertAttributionWindow.reset()
+        clashAlertWindow.reset()
         alertAttributionMessage = ""
         interfaceAlertMessage = "接口短时窗口已清空；等待连续采样。"
         applicationAlertMessage = "应用短时窗口已清空；等待连续采样。"
@@ -53,7 +54,9 @@ extension AgentRuntime {
                         windowSeconds: policy.windowSeconds, observedSeconds: usage.observedSeconds,
                         policyVersion: policy.version, occurredAt: now,
                         applications: alertAttributionWindow.snapshot(since: usage.startedAt, through: uptime,
-                            scope: "\(category.rawValue):\(day):\(pathGeneration):\(policy.version)")))
+                            scope: "\(category.rawValue):\(day):\(pathGeneration):\(policy.version)").resolvingClash(
+                                clashAlertWindow.sources(since: usage.startedAt, through: uptime,
+                                    scope: "\(category.rawValue):\(day):\(pathGeneration):\(policy.version)"))))
                 }
                 burstMessage = interfaceAlertWindow.isCollecting
                     ? "接口短时预警运行中；未知来源不影响接口提醒。" : "接口短时预警等待连续采样。"
@@ -107,7 +110,7 @@ extension AgentRuntime {
         guard snapshot.items.count == 1, snapshot.items[0].totalBytes == usage.bytes else {
             return .unavailable("触发应用的方向明细未覆盖完整预警区间；保留原预警用量。")
         }
-        return snapshot
+        return snapshot.resolvingClash(clashAlertWindow.sources(since: usage.startedAt, through: uptime, scope: scope))
     }
 
     /// Each canonical app is checked independently. A rollback only rebases its app.
@@ -124,6 +127,7 @@ extension AgentRuntime {
             guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
             applicationAlertWindow.reset()
             alertAttributionWindow.reset()
+            clashAlertWindow.reset()
             applicationAlertMessage = "应用预警配置读取失败：\(error.localizedDescription)"
             return
         }

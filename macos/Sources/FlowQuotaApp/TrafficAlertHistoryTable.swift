@@ -85,7 +85,7 @@ private struct TrafficAlertTableRow: View {
         SystemProcessClassification(identity: AppIdentity(key: event.sourceKey, name: event.sourceName))
     }
     private var sourceTitle: String {
-        event.kind == .applicationBurst ? source.displayName : "本机计量接口"
+        event.kind == .applicationBurst ? (source.category == .sharedProxy ? "Clash" : source.displayName) : "Mac 总流量"
     }
     private var typeTitle: String {
         switch event.kind {

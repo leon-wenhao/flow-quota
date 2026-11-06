@@ -629,3 +629,8 @@ v7→v8 使用 `ALTER TABLE ... ADD COLUMN ... DEFAULT NULL`，在既有迁移�
 依据：SQLite 官方 ALTER TABLE / ADD COLUMN 文档（https://www.sqlite.org/lang_altertable.html），新增可空列无需重写旧记录；
 SwiftUI `View.task(id:priority:_:)` 官方文档，用事件 UUID 与类别驱动按需读取并取消已离开视图的任务。
 适用工具链：Swift 6、macOS 14+；迁移、重试一致性、跨日清理、窗口边界及实际编译结果见本次测试。
+
+
+## schema v9：当天 Clash 来源分钟
+
+本次实体、字段、范围查询、主键与索引、事务、容量、数据留存和迁移设计见 [Clash 来源拆分方案](clash-usage-breakdown.md)。该表用于重启后仍能展示当日已识别来源，不存网络内容，不将来源变为额度身份；派生剩余量不落表。v8 预警快照继续使用既有 applications_json（上限 524288 bytes），新增可选 Clash 来源子项，不增加表/列；必须是代理内核身份、最多 129 子项、ID 唯一且上下行各自精确相加等于父项。事件的 canonical 身份、应用触发匹配与阈值语义不变，旧 JSON 可读且历史不回填。

@@ -110,7 +110,11 @@ struct PreferencesWindowView: View {
         case .charts: UsageDashboardView(state: state).id(state.selectedTrafficCategory)
         case .details:
             UsageDetailsView(state: state, showCharts: { navigation.select(.charts) })
-            if let proxy = state.snapshot?.mihomoProxy { MihomoProxyCard(proxy: proxy) }
+            TrafficMeasurementDetailsView(state: state) { app in
+                navigation.select(.applications)
+                navigation.application = app
+            }
+            if let proxy = state.categoryMihomoProxy { MihomoProxyCard(proxy: proxy) }
         case .reminders: ReminderSettingsView(state: state).id(state.selectedTrafficCategory)
         case .history: TrafficAlertHistoryView(state: state).id(state.selectedTrafficCategory)
         case .general: SettingsView(state: state)

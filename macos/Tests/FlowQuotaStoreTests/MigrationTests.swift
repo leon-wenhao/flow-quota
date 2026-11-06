@@ -39,7 +39,7 @@ struct MigrationTests {
                                           bytes: 10, ruleVersion: 3, expiresAt: fixture.expiry)
         try await store.close()
         let check = try SQLiteConnection(path: fixture.path)
-        #expect(try check.scalar("PRAGMA user_version") == 8)
+        #expect(try check.scalar("PRAGMA user_version") == 9)
         #expect(try check.scalar("SELECT COUNT(*) FROM budget_leases") == 1)
         #expect(try check.scalar("SELECT COUNT(*) FROM daily_interface_usage") == 0)
         try check.close()
@@ -142,7 +142,7 @@ struct MigrationTests {
         #expect(try await store.interfaceUsage(day: "2026-11-04") == nil)
         try await store.close()
         let check = try SQLiteConnection(path: fixture.path)
-        #expect(try check.scalar("PRAGMA user_version") == 8)
+        #expect(try check.scalar("PRAGMA user_version") == 9)
         #expect(try check.scalar("SELECT COUNT(*) FROM daily_interface_usage") == 0)
         #expect(try check.scalar("SELECT COUNT(*) FROM budget_leases WHERE lease_id = 'old-lease'") == 1)
         try check.close()
@@ -168,7 +168,7 @@ struct MigrationTests {
         #expect(try await store.loadRules()["legacy"]?.version == 3)
         try await store.close()
         let check = try SQLiteConnection(path: fixture.path)
-        #expect(try check.scalar("PRAGMA user_version") == 8)
+        #expect(try check.scalar("PRAGMA user_version") == 9)
         try check.close()
     }
 

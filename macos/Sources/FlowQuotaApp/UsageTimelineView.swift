@@ -27,7 +27,6 @@ struct UsageTimelineView: View {
         let dayStart = Calendar.current.startOfDay(for: Date())
         let query = query(now: now, dayStart: dayStart)
         let data = result.flatMap { $0.query == query ? ApplicationTimelinePresentation.make($0) : nil }
-        let clash = result.flatMap { $0.query == query ? ApplicationTimelinePresentation.make($0, scope: .clash) : nil }
         let meter = query.flatMap { MacTrafficTimeline.make(query: $0, minutes: state.categorySnapshot?.interfaceUsageMinutes) }
         VStack(alignment: .leading, spacing: 16) {
             SettingsSection(title: "Mac 分时总流量") {
@@ -45,16 +44,17 @@ struct UsageTimelineView: View {
                     .font(.caption)
                 }
                 if let meter, snapshotUsable {
-                    chart(meter, processes: data, clash: clash)
+                    chart(meter, processes: data)
                 } else {
                     message(!snapshotUsable ? "服务未连接或快照已过期，请刷新。" : query == nil
                         ? "请选择当天有效时段。" : "接口分时记录未知；不会用应用合计代替。")
                 }
+                if let failure = state.clashSourceFailure { Text(failure).font(.caption).foregroundStyle(.orange) }
                 if let loadError { Text("应用明细读取失败：\(loadError)；接口总量仍独立展示。").font(.caption).foregroundStyle(.orange) }
             }
             .zIndex(1)
             if snapshotUsable {
-                TrafficSourceDetailsView(processes: data, clash: clash, total: meter?.summary)
+                TrafficSourceDetailsView(processes: data)
                 if let data, data.summary.totalBytes != nil { UsageChartsView(data: data) }
             }
         }
@@ -63,8 +63,7 @@ struct UsageTimelineView: View {
             do {
                 let next = try await state.client.fetchApplicationTimeline(query)
                 try Task.checkCancellation()
-                guard next.query == query, ApplicationTimelinePresentation.make(next) != nil,
-                      ApplicationTimelinePresentation.make(next, scope: .clash) != nil else {
+                guard next.query == query, ApplicationTimelinePresentation.make(next) != nil else {
                     throw PlatformError.malformedReply
                 }
                 result = next
@@ -94,8 +93,7 @@ struct UsageTimelineView: View {
             end: Date(timeIntervalSince1970: ceil(end.timeIntervalSince1970 / 60) * 60), appKey: nil)
     }
 
-    private func chart(_ data: ApplicationTimelinePresentation, processes: ApplicationTimelinePresentation?,
-                       clash: ApplicationTimelinePresentation?) -> some View {
+    private func chart(_ data: ApplicationTimelinePresentation, processes: ApplicationTimelinePresentation?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
@@ -112,11 +110,11 @@ struct UsageTimelineView: View {
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 Image(systemName: "info.circle")
-                    .help("总量来自所选物理接口，包含全部有效观测字节，不因应用来源未知而减少。每组左侧上传、右侧下载；悬停查看总量及进程线索，完整明细在下方。进程及 Clash 辅助来源可能重叠，不相加作为接口总量；无法对应的差额会明确显示。空白未观测，圆点为观测零；采样间断不补量。")
+                    .help("总量来自所选物理接口，包含全部有效观测字节，不因应用来源未知而减少。每组左侧上传、右侧下载；悬停查看总量及流量来源，完整明细在下方。Clash 来源与其他未识别保留内核全部用量，父项不重复列出；物理接口与应用观测仍可能存在时间与协议差异。空白未观测，圆点为观测零；采样间断不补量。")
                     .accessibilityLabel("Mac 总流量统计说明")
             }
             if data.summary.totalBytes != nil {
-                UsageTimelineChart(data: data, processes: processes, clash: clash, isInterface: true)
+                UsageTimelineChart(data: data, processes: processes, isInterface: true)
             } else {
                 message("此时段无接口观测，总量未知；应用明细仍单独保留。")
             }

@@ -65,6 +65,17 @@ extension AgentRuntime {
         let events = try await store.trafficAlertEvents(day: day, category: category).map { $0.summaryOnly() }
         let usage = try await store.interfaceUsage(day: day, category: category)
         let minutes = try await store.interfaceUsageMinutes(day: day, category: category)
+        var breakdown: ClashUsageBreakdown?
+        var sourceError: String?
+        var sourceObservations: [ClashUsageSource]?
+        do {
+            breakdown = try await store.dailyClashBreakdown(day: day, category: category)
+            sourceObservations = try await store.dailyClashObservations(day: day, category: category)
+        } catch {
+            // Source failures must never make the independent interface snapshot unavailable.
+            breakdown = nil
+            sourceError = "Clash 来源记录读取失败，内核用量保留为其他未识别：\(error.localizedDescription)"
+        }
         let isActiveCategory = path.state.trafficCategory == category
         let interfaceDate = isActiveCategory && interfaceSampledCategory == category
             ? currentDaySample(interfaceSampledAt, day: day) : nil
@@ -75,7 +86,8 @@ extension AgentRuntime {
                 : "当前连接不属于\(category.title)；仅显示该类今日已观测累计，未观测区间未知。",
             trafficAlertPolicy: policy, trafficAlertEvents: events, interfaceUsageMinutes: minutes,
             mihomoProxy: mihomoAccumulator.snapshot(category: category, day: day,
-                status: mihomoProxy.status, message: mihomoProxy.message))
+                status: mihomoProxy.status, message: mihomoProxy.message), clashBreakdown: breakdown,
+            clashSourceError: sourceError, clashSourceObservations: sourceObservations)
     }
 
     private func currentDaySample(_ date: Date?, day: String) -> Date? {

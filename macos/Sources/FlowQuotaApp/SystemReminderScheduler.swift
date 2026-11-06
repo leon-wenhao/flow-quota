@@ -28,9 +28,10 @@ import UserNotifications
         let interval = alert.kind == .dailyInterface ? "今日累计"
             : "最近最多 \(alert.windowSeconds / 60) 分钟内（连续观测 \(alert.observedSeconds) 秒）"
         let classification = SystemProcessClassification(identity: AppIdentity(key: alert.sourceKey, name: alert.sourceName))
-        let source = alert.kind == .applicationBurst ? "\(classification.displayName)（应用/服务归因，原始请求方未必可确认）"
-            : "本机计量接口（来源未确认）"
-        content.body = "\(source)：\(interval)上传＋下载 \(UsageFormatter.bytes(alert.observedBytes))，阈值 \(UsageFormatter.bytes(alert.thresholdBytes))。仅提醒，连接继续；不等于运营商账单。"
+        let source = alert.kind == .applicationBurst
+            ? (classification.category == .sharedProxy ? "Clash" : classification.displayName) : "Mac 总流量"
+        let details = alert.applicationSummary.map { " 来源：" + $0 + "。" } ?? ""
+        content.body = "\(source)：\(interval)上传＋下载 \(UsageFormatter.bytes(alert.observedBytes))，阈值 \(UsageFormatter.bytes(alert.thresholdBytes))。" + details + "仅提醒，连接继续。"
         content.sound = .default
         return UNNotificationRequest(identifier: "flowquota:traffic:\(alert.id)", content: content, trigger: nil)
     }

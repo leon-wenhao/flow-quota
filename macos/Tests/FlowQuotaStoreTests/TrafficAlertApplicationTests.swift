@@ -54,6 +54,7 @@ struct TrafficAlertApplicationTests {
         #expect(try await store.recordTrafficAlert(oldEvent))
         try await store.close()
         let db = try SQLiteConnection(path: f.path)
+        try db.execute("DROP TABLE clash_source_usage_minutes")
         try db.execute("PRAGMA user_version = 7")
         // A column conflict models failed DDL; never silently mark v8 complete.
         #expect(throws: StoreError.self) { try f.open() }
@@ -61,7 +62,7 @@ struct TrafficAlertApplicationTests {
         #expect(try db.scalar("SELECT COUNT(*) FROM traffic_alert_events") == 1)
         try db.execute("ALTER TABLE traffic_alert_events DROP COLUMN applications_json")
         let upgraded = try f.open()
-        #expect(try db.scalar("PRAGMA user_version") == 8)
+        #expect(try db.scalar("PRAGMA user_version") == 9)
         let saved = try await upgraded.trafficAlertEvents(day: f.day)
         #expect(saved == [oldEvent])
         #expect(saved.first?.applications == nil && saved.first?.applicationSummary == nil)
