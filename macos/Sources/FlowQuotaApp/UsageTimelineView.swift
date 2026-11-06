@@ -27,8 +27,10 @@ struct UsageTimelineView: View {
         let dayStart = Calendar.current.startOfDay(for: Date())
         let query = query(now: now, dayStart: dayStart)
         let data = result.flatMap { $0.query == query ? ApplicationTimelinePresentation.make($0) : nil }
+        let clash = result.flatMap { $0.query == query ? ApplicationTimelinePresentation.make($0, scope: .clash) : nil }
+        let meter = query.flatMap { MacTrafficTimeline.make(query: $0, minutes: state.categorySnapshot?.interfaceUsageMinutes) }
         VStack(alignment: .leading, spacing: 16) {
-            SettingsSection(title: "应用分时用量") {
+            SettingsSection(title: "Mac 分时总流量") {
                 FlowQuotaSegmentedControl(
                     options: TimeRange.allCases,
                     selection: $range,
@@ -42,23 +44,27 @@ struct UsageTimelineView: View {
                     }
                     .font(.caption)
                 }
-                if let data, snapshotUsable {
-                    chart(data)
+                if let meter, snapshotUsable {
+                    chart(meter, processes: data, clash: clash)
                 } else {
                     message(!snapshotUsable ? "服务未连接或快照已过期，请刷新。" : query == nil
-                        ? "请选择当天有效时段。" : loadError ?? "正在读取应用分时用量…")
+                        ? "请选择当天有效时段。" : "接口分时记录未知；不会用应用合计代替。")
                 }
-                if data != nil, let loadError { Text("更新失败：\(loadError)").font(.caption).foregroundStyle(.orange) }
+                if let loadError { Text("应用明细读取失败：\(loadError)；接口总量仍独立展示。").font(.caption).foregroundStyle(.orange) }
             }
             .zIndex(1)
-            if let data, data.summary.totalBytes != nil, snapshotUsable { UsageChartsView(data: data) }
+            if snapshotUsable {
+                TrafficSourceDetailsView(processes: data, clash: clash, total: meter?.summary)
+                if let data, data.summary.totalBytes != nil { UsageChartsView(data: data) }
+            }
         }
         .task(id: Refresh(query: query, snapshotDate: state.snapshot?.generatedAt, usable: snapshotUsable)) {
             guard let query, snapshotUsable else { return }
             do {
                 let next = try await state.client.fetchApplicationTimeline(query)
                 try Task.checkCancellation()
-                guard next.query == query, ApplicationTimelinePresentation.make(next) != nil else {
+                guard next.query == query, ApplicationTimelinePresentation.make(next) != nil,
+                      ApplicationTimelinePresentation.make(next, scope: .clash) != nil else {
                     throw PlatformError.malformedReply
                 }
                 result = next
@@ -88,15 +94,16 @@ struct UsageTimelineView: View {
             end: Date(timeIntervalSince1970: ceil(end.timeIntervalSince1970 / 60) * 60), appKey: nil)
     }
 
-    private func chart(_ data: ApplicationTimelinePresentation) -> some View {
+    private func chart(_ data: ApplicationTimelinePresentation, processes: ApplicationTimelinePresentation?,
+                       clash: ApplicationTimelinePresentation?) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(UsageFormatter.bytes(data.summary.totalBytes)).font(.title2.bold()).monospacedDigit()
-                    Text("上传＋下载合计").font(.caption).foregroundStyle(.secondary)
+                    Text("Mac 接口上传＋下载合计").font(.caption).foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("所选时段应用上传与下载合计")
+                .accessibilityLabel("所选时段 Mac 接口上传与下载总量")
                 .accessibilityValue(UsageFormatter.bytes(data.summary.totalBytes))
                 Spacer()
                 VStack(alignment: .trailing, spacing: 3) {
@@ -105,13 +112,13 @@ struct UsageTimelineView: View {
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 Image(systemName: "info.circle")
-                    .help("大号数值是所选时段内上传与下载的应用用量合计。每组有两根柱子，左侧上传、右侧下载，不同颜色表示不同应用；悬停查看各应用用量。仅含升级后已观测的当天应用归因，可能重叠或不完整；空白未知，圆点为观测零。不等同接口总量，Clash 来源见应用列表。按所选范围展示归因选择前十来源，其余合并为其他应用。与应用列表一致隐藏代理内核；Clash 来源与普通应用可能重叠，合计不是接口总量，也不能视为直连量。" + (data.clashNotice ?? ""))
-                    .accessibilityLabel("应用流量统计说明")
+                    .help("总量来自所选物理接口，包含全部有效观测字节，不因应用来源未知而减少。每组左侧上传、右侧下载；悬停查看总量及进程线索，完整明细在下方。进程及 Clash 辅助来源可能重叠，不相加作为接口总量；无法对应的差额会明确显示。空白未观测，圆点为观测零；采样间断不补量。")
+                    .accessibilityLabel("Mac 总流量统计说明")
             }
             if data.summary.totalBytes != nil {
-                UsageTimelineChart(data: data)
+                UsageTimelineChart(data: data, processes: processes, clash: clash, isInterface: true)
             } else {
-                message("此时段暂无应用分时记录，升级前和暂停期间不补算。")
+                message("此时段无接口观测，总量未知；应用明细仍单独保留。")
             }
         }
     }

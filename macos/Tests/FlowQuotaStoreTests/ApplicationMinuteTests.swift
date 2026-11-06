@@ -40,15 +40,15 @@ struct ApplicationMinuteTests {
         try await reopened.close()
     }
 
-    @Test func topTenTailAndSingleAppQueryRetainAllBytes() async throws {
+    @Test func everyApplicationAndSingleAppQueryRetainAllBytes() async throws {
         let f = try StoreFixture(); defer { f.cleanup() }
         let store = try f.open()
         for index in 1...15 { try await record(store, f, key: "app:\(index)", upload: Int64(index), download: 10) }
         let rows = try await store.applicationTimeline(query(f)).buckets
-        #expect(rows.count == 11)
-        #expect(Set(rows.compactMap(\.appKey)) == Set((6...15).map { "app:\($0)" }))
-        #expect(rows.first { $0.appKey == nil }?.uploadedBytes == 15)
-        #expect(rows.first { $0.appKey == nil }?.downloadedBytes == 50)
+        #expect(rows.count == 15)
+        #expect(Set(rows.compactMap(\.appKey)) == Set((1...15).map { "app:\($0)" }))
+        #expect(!rows.contains { $0.appKey == nil })
+        #expect(rows.filter { ["app:1", "app:2", "app:3", "app:4", "app:5"].contains($0.appKey ?? "") }.reduce(0) { $0 + $1.downloadedBytes } == 50)
         #expect(rows.reduce(0) { $0 + $1.uploadedBytes } == 120)
         let specific = try await store.applicationTimeline(query(f, appKey: "app:1"))
         #expect(specific.buckets.count == 1)
@@ -89,13 +89,14 @@ struct ApplicationMinuteTests {
         try db.execute("DROP TABLE application_usage_minutes")
         try db.execute("CREATE TABLE application_usage_minutes (evidence TEXT)")
         try db.execute("INSERT INTO application_usage_minutes VALUES ('retain')")
+        try db.execute("ALTER TABLE traffic_alert_events DROP COLUMN applications_json")
         try db.execute("PRAGMA user_version = 6")
         #expect(throws: StoreError.self) { try f.open() }
         #expect(try db.scalar("PRAGMA user_version") == 6)
         #expect(try db.query("SELECT evidence FROM application_usage_minutes", row: { $0.text(0) }) == ["retain"])
         try db.execute("DROP TABLE application_usage_minutes")
         let upgraded = try f.open()
-        #expect(try db.scalar("PRAGMA user_version") == 7)
+        #expect(try db.scalar("PRAGMA user_version") == 8)
         #expect(try await upgraded.applicationTimeline(query(f)).buckets.isEmpty)
         #expect(try await upgraded.snapshot(day: f.day).first?.usage.uploadedBytes == 7)
         #expect(try db.query("PRAGMA integrity_check", row: { $0.text(0) }) == ["ok"])
@@ -145,7 +146,7 @@ struct ApplicationMinuteTests {
         let start = ContinuousClock.now
         let result = try await store.applicationTimeline(query(f))
         let duration = start.duration(to: .now)
-        #expect(result.buckets.count == 132)
+        #expect(result.buckets.count == 1536)
         #expect(result.buckets.reduce(0) { $0 + $1.uploadedBytes } == 7_680)
         let encoded = try JSONEncoder().encode(AgentReply.applicationTimeline(result))
         #expect(encoded.count <= AgentEndpoint.maximumMessageBytes)

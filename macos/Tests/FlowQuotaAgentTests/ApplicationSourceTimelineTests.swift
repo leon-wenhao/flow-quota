@@ -28,13 +28,13 @@ import FlowQuotaStore
         guard case .applicationTimeline(let result) = try await runtime.handle(.applicationTimeline(query)) else {
             Issue.record("Expected source timeline"); return
         }
-        #expect(result.buckets.count == 2)
-        #expect(!result.buckets.contains { $0.appKey == kernel.key })
+        #expect(result.buckets.count == 3)
+        #expect(result.buckets.contains { $0.appKey == kernel.key })
         let clash = try #require(result.buckets.first { $0.clashSourceID != nil })
         #expect(clash.name == "YouTube（Clash）")
         #expect(clash.uploadedBytes == 50 && clash.downloadedBytes == 100)
         #expect(clash.appKey == nil)
-        #expect(result.buckets.reduce(0) { $0 + $1.uploadedBytes + $1.downloadedBytes } == 180)
+        #expect(result.buckets.filter { $0.clashSourceID == nil }.reduce(0) { $0 + $1.uploadedBytes + $1.downloadedBytes } == 3030)
         #expect(result.clashNotice?.contains("重启清空") == true)
         let after = try await store.snapshot(day: day)
         #expect(after.map(\.identity) == before.map(\.identity))

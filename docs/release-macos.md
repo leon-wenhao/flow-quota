@@ -6,12 +6,12 @@
 
 先完成并审查源码，再设置版本。对外标题只显示三段版本号，tag 例如 `v0.1.4`，不带 build 后缀；每次发布版本号和内部构建号都必须递增。
 
-0.1.6 发布后，下一次发布可使用：
+0.1.7 发布后，下一次发布可使用：
 
 ```bash
-./scripts/set-version.sh 0.1.7 28
+./scripts/set-version.sh 0.1.8 29
 git add <本次需要发布的文件>
-git commit -m "release: prepare 0.1.7"
+git commit -m "release: prepare 0.1.8"
 git push origin main
 ./scripts/release-macos.sh --publish --activate-manifest
 ```
@@ -47,7 +47,7 @@ python3 scripts/publish_macos.py   --bundle .artifacts/releases/FlowQuota-0.1.5-
 
 ## 安装与构建限制
 
-更新只由用户点击触发。按架构下载并校验大小和 SHA-256 后打开 DMG，由用户拖拽替换；没有后台自动更新、静默替换或网络阻断。
+更新只由用户点击“检查更新”触发。0.1.6 起使用 Sparkle 标准界面，经用户确认后按架构下载、校验并完成替换和重启；首次安装及旧版仍可通过 DMG 拖拽安装。没有后台自动检查、静默下载或网络阻断。
 
 DMG 固定图标视图：Flow Quota 在左、Applications 在右、中间箭头、底部安装提示及说明文件。构建布局需要登录图形会话和 Finder 自动化授权，失败时明确停止；用户打开成品无需此授权。同版本卷已挂载时先手动推出。可单独打包：
 

@@ -52,6 +52,13 @@ import ServiceManagement
         try await requireAcknowledgement(.acknowledgeNotification(key))
     }
 
+    public func fetchTrafficAlertDetails(id: String, day: String, category: TrafficCategory) async throws -> TrafficAlertEvent {
+        guard case .trafficAlertDetails(let event) = try await send(.trafficAlertDetails(category: category, day: day, id: id)),
+              event.id == id, event.day == day, event.category == category else { throw PlatformError.malformedReply }
+        try event.validate()
+        return event
+    }
+
     public func fetchSnapshot() async throws -> AgentSnapshot {
         guard case .snapshot(let state) = try await send(.snapshot) else {
             throw PlatformError.malformedReply

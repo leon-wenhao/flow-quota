@@ -12,16 +12,16 @@ struct ApplicationTimelineGroupingTests {
             uploadedBytes: 0, downloadedBytes: bytes, sampleCount: 1, clashSourceID: clash)
     }
 
-    @Test func proxyIsHiddenBeforeTopTenAndNeverAddedToOther() throws {
+    @Test func proxyAndEveryLowRankedSourceRemainAvailable() throws {
         let kernel = row("exec:/Library/Application Support/clash-verge-service/cores/verge-mihomo", name: "verge-mihomo", bytes: 1_000_000)
         var rows = (0..<11).map { row("exec:/test/\($0)", name: "App \($0)", bytes: Int64($0 + 1)) }
         rows += [kernel, row(nil, name: "YouTube（Clash）", bytes: 100, clash: "site:youtube")]
         let result = try ApplicationTimelineGrouping.make(query: query, rows: rows)
-        #expect(result.buckets.count == 11)
+        #expect(result.buckets.count == 13)
         #expect(result.buckets.contains { $0.clashSourceID == "site:youtube" && $0.name == "YouTube（Clash）" })
-        #expect(!result.buckets.contains { $0.appKey == kernel.appKey })
-        #expect(result.buckets.reduce(0) { $0 + $1.downloadedBytes } == 166)
-        #expect(result.buckets.first { $0.sourceID == "remaining" }?.downloadedBytes == 3)
+        #expect(result.buckets.contains { $0.appKey == kernel.appKey })
+        #expect(result.buckets.reduce(0) { $0 + $1.downloadedBytes } == 1_000_166)
+        #expect(!result.buckets.contains { $0.sourceID == "remaining" })
     }
 
     @Test func namesNamespacesAndBucketDenominatorsStayConsistent() throws {
@@ -40,11 +40,11 @@ struct ApplicationTimelineGroupingTests {
         #expect(try JSONDecoder().decode(ApplicationUsageBucket.self, from: Data(previous.utf8)).clashSourceID == nil)
     }
 
-    @Test func checkedTotalsRejectOverlapOverflowInsteadOfWrapping() {
+    @Test func checkedRowsRejectOverflowInsteadOfWrapping() {
         #expect(throws: (any Error).self) {
             try ApplicationTimelineGrouping.make(query: query, rows: [
-                row("exec:/test/App", name: "App", bytes: Int64.max),
-                row(nil, name: "App（Clash）", bytes: 1, clash: "source")])
+                ApplicationUsageBucket(appKey: "exec:/test/App", name: "App",
+                    startMilliseconds: 0, uploadedBytes: Int64.max, downloadedBytes: 1, sampleCount: 1)])
         }
     }
 }

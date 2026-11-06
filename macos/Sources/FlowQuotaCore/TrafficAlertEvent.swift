@@ -27,17 +27,22 @@ public struct TrafficAlertEvent: Codable, Sendable, Equatable, Identifiable {
     public let policyVersion: Int64
     public let occurredAt: Date
     public let scheduledAt: Date?
+    public let applications: TrafficAlertApplications?
+    public let applicationSummary: String?
 
     public init(category: TrafficCategory = .metered, id: String = UUID().uuidString, day: String, kind: TrafficAlertKind,
                 sourceKey: String = "", sourceName: String, observedBytes: Int64,
                 thresholdBytes: Int64, windowSeconds: Int, observedSeconds: Int,
-                policyVersion: Int64, occurredAt: Date, scheduledAt: Date? = nil) {
+                policyVersion: Int64, occurredAt: Date, scheduledAt: Date? = nil,
+                applications: TrafficAlertApplications? = nil, applicationSummary: String? = nil) {
         self.category = category
         self.id = id; self.day = day; self.kind = kind; self.sourceKey = sourceKey
         self.sourceName = sourceName; self.observedBytes = observedBytes
         self.thresholdBytes = thresholdBytes; self.windowSeconds = windowSeconds
         self.observedSeconds = observedSeconds; self.policyVersion = policyVersion
         self.occurredAt = occurredAt; self.scheduledAt = scheduledAt
+        self.applications = applications
+        self.applicationSummary = applications?.summary ?? applicationSummary
     }
 
     public init(from decoder: any Decoder) throws {
@@ -49,10 +54,28 @@ public struct TrafficAlertEvent: Codable, Sendable, Equatable, Identifiable {
             observedBytes: try v.decode(Int64.self, forKey: .observedBytes), thresholdBytes: try v.decode(Int64.self, forKey: .thresholdBytes),
             windowSeconds: try v.decode(Int.self, forKey: .windowSeconds), observedSeconds: try v.decode(Int.self, forKey: .observedSeconds),
             policyVersion: try v.decode(Int64.self, forKey: .policyVersion), occurredAt: try v.decode(Date.self, forKey: .occurredAt),
-            scheduledAt: try v.decodeIfPresent(Date.self, forKey: .scheduledAt))
+            scheduledAt: try v.decodeIfPresent(Date.self, forKey: .scheduledAt),
+            applications: try v.decodeIfPresent(TrafficAlertApplications.self, forKey: .applications),
+            applicationSummary: try v.decodeIfPresent(String.self, forKey: .applicationSummary))
+    }
+
+    public func summaryOnly() -> Self {
+        Self(category: category, id: id, day: day, kind: kind, sourceKey: sourceKey, sourceName: sourceName,
+            observedBytes: observedBytes, thresholdBytes: thresholdBytes, windowSeconds: windowSeconds,
+            observedSeconds: observedSeconds, policyVersion: policyVersion, occurredAt: occurredAt,
+            scheduledAt: scheduledAt, applicationSummary: applicationSummary)
     }
 
     public func validate() throws {
+        try applications?.validate()
+        if kind == .applicationBurst, let items = applications?.items, !items.isEmpty {
+            guard items.count == 1, items[0].id == sourceKey, items[0].totalBytes == observedBytes else {
+                throw TrafficAlertError.invalidEvent
+            }
+        }
+        guard applicationSummary.map({ $0.utf8.count <= 256 && !$0.contains("\0") }) ?? true else {
+            throw TrafficAlertError.invalidEvent
+        }
         guard UUID(uuidString: id) != nil, LocalDay.isValidKey(day),
               !sourceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               sourceName.utf8.count <= 256, !sourceName.contains("\0"),

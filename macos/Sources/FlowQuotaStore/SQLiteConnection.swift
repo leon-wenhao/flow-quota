@@ -153,6 +153,9 @@ final class SQLiteStatement {
     func optionalInteger(_ index: Int32) -> Int64? {
         sqlite3_column_type(handle, index) == SQLITE_NULL ? nil : integer(index)
     }
+    func optionalText(_ index: Int32) -> String? {
+        sqlite3_column_type(handle, index) == SQLITE_NULL ? nil : text(index)
+    }
     func text(_ index: Int32) -> String {
         guard let value = sqlite3_column_text(handle, index) else { return "" }
         return String(cString: value)

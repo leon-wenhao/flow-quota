@@ -78,6 +78,7 @@ extension AgentRuntime {
         guard capturedDay == day, now.timeIntervalSince(frame.capturedAt) <= 8 else {
             accumulator.reset()
             applicationAlertWindow.reset()
+            alertAttributionWindow.reset()
             gaps += 1
             monitoringMessage = "采样间隔跨日或过长，已重建基线；间断流量未知。"
             return
@@ -127,6 +128,7 @@ extension AgentRuntime {
         samplingTask = nil
         accumulator.reset()
         applicationAlertWindow.reset()
+        alertAttributionWindow.reset()
         applicationAlertMessage = "应用采样失败；应用短时窗口已清空，接口预警独立运行。"
         monitoring = .failed
         monitoringMessage = "采集失败：\(error.localizedDescription) 请重新启用采集；中断期间用量未知。"

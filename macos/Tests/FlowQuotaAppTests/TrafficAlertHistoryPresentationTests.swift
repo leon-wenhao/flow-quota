@@ -92,6 +92,44 @@ struct TrafficAlertHistoryPresentationTests {
         #expect(abs(host.fittingSize.height - collapsed) < 1)
     }
 
+    @Test(arguments: [CGFloat(500), CGFloat(720)])
+    func appEvidenceLoadsOnlyWhenExpandedAndRendersDirections(width: CGFloat) async throws {
+        let today = try LocalDay.key(for: Date(), in: .current)
+        let apps = TrafficAlertApplications(items: [
+            TrafficAlertApplication(identity: AppIdentity(key: "signed:browser", name: "浏览器"),
+                uploadedBytes: 12_000_000, downloadedBytes: 180_000_000),
+            TrafficAlertApplication(identity: AppIdentity(key: "exec:/usr/libexec/nsurlsessiond", name: "nsurlsessiond"),
+                uploadedBytes: 1_000_000, downloadedBytes: 30_000_000),
+            TrafficAlertApplication(identity: AppIdentity(key: "signed:chat", name: "微信"),
+                uploadedBytes: 5_000_000, downloadedBytes: 2_000_000)
+        ], observedAt: Date())
+        let event = TrafficAlertEvent(day: today, kind: .interfaceBurst, sourceName: "本机计量接口",
+            observedBytes: 240_000_000, thresholdBytes: 200_000_000, windowSeconds: 180,
+            observedSeconds: 125, policyVersion: 1, occurredAt: Date(), applications: apps)
+        var reads = 0
+        let host = NSHostingView(rootView: TrafficAlertHistoryTable(events: [event.summaryOnly()], loadDetails: { _ in
+            reads += 1
+            return event
+        }).frame(width: width))
+        let window = makeWindow(host, width: width)
+        defer { window.close() }
+        try await Task.sleep(for: .milliseconds(40))
+        #expect(reads == 0)
+        let collapsed = host.fittingSize.height
+        try save(host, to: "/tmp/flow-quota-alert-applications-collapsed-\(Int(width)).png")
+        click(window, host: host, point: CGPoint(x: 7, y: 65))
+        try await Task.sleep(for: .milliseconds(80))
+        host.layoutSubtreeIfNeeded()
+        #expect(reads == 1)
+        #expect(host.fittingSize.width == width)
+        #expect(host.fittingSize.height > collapsed + 100)
+        host.frame.size.height = host.fittingSize.height
+        try save(host, to: "/tmp/flow-quota-alert-applications-expanded-\(Int(width)).png")
+        click(window, host: host, point: CGPoint(x: 7, y: 65))
+        try await Task.sleep(for: .milliseconds(40))
+        #expect(abs(host.fittingSize.height - collapsed) < 1)
+    }
+
     private func fixtures() throws -> [TrafficAlertEvent] {
         let today = try LocalDay.key(for: Date(), in: .current)
         return TrafficAlertKind.allCases.enumerated().map { index, kind in

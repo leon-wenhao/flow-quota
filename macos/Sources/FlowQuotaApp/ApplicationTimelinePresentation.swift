@@ -45,10 +45,14 @@ struct ApplicationTimelinePresentation {
     let slotSources: [[UsageApplicationSource]]
     let clashNotice: String?
 
-    static func make(_ result: ApplicationUsageTimeline) -> ApplicationTimelinePresentation? {
+    enum Scope { case processes, clash }
+
+    static func make(_ result: ApplicationUsageTimeline, scope: Scope = .processes) -> ApplicationTimelinePresentation? {
+        let scopedRows = result.buckets.filter { scope == .clash ? $0.clashSourceID != nil : $0.clashSourceID == nil }
         let query = result.query
         let duration = query.end.timeIntervalSince(query.start)
-        guard [5, 30].contains(result.bucketMinutes), duration > 0, duration <= 90_000,
+        guard query.start.timeIntervalSince1970.isFinite, duration.isFinite,
+              [5, 30].contains(result.bucketMinutes), duration > 0, duration <= 90_000,
               result.buckets.count <= ApplicationUsageTimeline.maximumRows else { return nil }
         let step = Double(result.bucketMinutes * 60)
         let count = Int(ceil(duration / step))
@@ -59,7 +63,7 @@ struct ApplicationTimelinePresentation {
         }
         var totals: [String: UsageApplicationSource] = [:]
         var seen = Set<String>()
-        for row in result.buckets {
+        for row in scopedRows {
             let date = Date(timeIntervalSince1970: Double(row.startMilliseconds) / 1_000)
             let offset = date.timeIntervalSince(query.start)
             guard offset >= 0, offset < duration, offset.truncatingRemainder(dividingBy: step) == 0,
@@ -93,7 +97,7 @@ struct ApplicationTimelinePresentation {
         let upload = UsageFormatter.total(observed.map(\.uploadedBytes))
         let download = UsageFormatter.total(observed.map(\.downloadedBytes))
         guard let upload, let download, UsageFormatter.total([upload, download]) != nil else { return nil }
-        let rows = Dictionary(uniqueKeysWithValues: result.buckets.map { ($0.id, $0) })
+        let rows = Dictionary(uniqueKeysWithValues: scopedRows.map { ($0.id, $0) })
         var segments: [UsageStackSegment] = []
         var slotSources = [[UsageApplicationSource]](repeating: [], count: count)
         for (index, slot) in slots.enumerated() {

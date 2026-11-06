@@ -17,16 +17,19 @@ import Testing
             uploadedBytes: 30, downloadedBytes: 40, sampleCount: 1, clashSourceID: "site:youtube")]
     let result = try ApplicationTimelineGrouping.make(query: query, rows: rows, clashNotice: "Session coverage")
     let data = try #require(ApplicationTimelinePresentation.make(result))
-    let names: Set<String> = ["App", "YouTube（Clash）"]
+    let names: Set<String> = ["App", "Clash 代理内核（来源应用待确认）"]
     #expect(Set(data.sources.map(\.name)) == names)
     #expect(Set(data.segments.map { $0.source.name }) == names)
-    #expect(data.summary.totalBytes == 100)
+    #expect(data.summary.totalBytes == 1830)
     let tooltip = try #require(data.selection(at: start.addingTimeInterval(1), bytes: 1))
     #expect(Set(tooltip.applications.map(\.name)) == names)
     for direction in UsageDirection.allCases {
         let pie = data.pie(direction)
         #expect(Set(pie.slices.map(\.label)) == names)
-        #expect(pie.totalBytes == (direction == .upload ? 40 : 60))
+        #expect(pie.totalBytes == (direction == .upload ? 910 : 920))
     }
     #expect(data.clashNotice == "Session coverage")
+    let auxiliary = try #require(ApplicationTimelinePresentation.make(result, scope: .clash))
+    #expect(auxiliary.sources.map(\.name) == ["YouTube（Clash）"])
+    #expect(auxiliary.summary.totalBytes == 70)
 }

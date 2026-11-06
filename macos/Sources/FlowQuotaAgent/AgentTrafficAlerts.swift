@@ -13,6 +13,8 @@ extension AgentRuntime {
         trafficAlertEpoch &+= 1
         interfaceAlertWindow.reset()
         applicationAlertWindow.reset()
+        alertAttributionWindow.reset()
+        alertAttributionMessage = ""
         interfaceAlertMessage = "接口短时窗口已清空；等待连续采样。"
         applicationAlertMessage = "应用短时窗口已清空；等待连续采样。"
     }
@@ -49,7 +51,9 @@ extension AgentRuntime {
                     try trafficAlertWrites.stage(TrafficAlertEvent(category: category, day: day, kind: .interfaceBurst,
                         sourceName: "本机计量接口", observedBytes: usage.bytes, thresholdBytes: limit,
                         windowSeconds: policy.windowSeconds, observedSeconds: usage.observedSeconds,
-                        policyVersion: policy.version, occurredAt: now))
+                        policyVersion: policy.version, occurredAt: now,
+                        applications: alertAttributionWindow.snapshot(since: usage.startedAt, through: uptime,
+                            scope: "\(category.rawValue):\(day):\(pathGeneration):\(policy.version)")))
                 }
                 burstMessage = interfaceAlertWindow.isCollecting
                     ? "接口短时预警运行中；未知来源不影响接口提醒。" : "接口短时预警等待连续采样。"
@@ -79,15 +83,31 @@ extension AgentRuntime {
             let usage = try await store.interfaceUsage(day: day, category: category)
             guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return message }
             if let total = usage?.totalBytes, total >= limit {
+                let applications: TrafficAlertApplications
+                do { applications = try await store.dailyAlertApplications(day: day, category: category, observedAt: now) }
+                catch { applications = .unavailable("预警触发时应用归因读取失败：\(error.localizedDescription)") }
+                guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return message }
                 try trafficAlertWrites.stage(TrafficAlertEvent(category: category, day: day, kind: .dailyInterface,
                     sourceName: "本机计量接口", observedBytes: total, thresholdBytes: limit,
-                    windowSeconds: 0, observedSeconds: 0, policyVersion: policy.version, occurredAt: now))
+                    windowSeconds: 0, observedSeconds: 0, policyVersion: policy.version, occurredAt: now,
+                    applications: applications))
             }
         } catch { message = "每日接口预警未完成：\(error.localizedDescription)" }
         if let failure = await flushTrafficAlertWrites(kind: .dailyInterface, generation: generation, epoch: epoch) {
             message += " 每日预警尚未保存，将重试：\(failure)"
         }
         return message
+    }
+
+    private func applicationAlertEvidence(key: String, usage: WindowUsage, uptime: UInt64,
+                                          scope: String) -> TrafficAlertApplications {
+        let snapshot = alertAttributionWindow.snapshot(since: usage.startedAt, through: uptime,
+                                                       scope: scope, sourceKey: key)
+        guard snapshot.observedAt != nil else { return snapshot }
+        guard snapshot.items.count == 1, snapshot.items[0].totalBytes == usage.bytes else {
+            return .unavailable("触发应用的方向明细未覆盖完整预警区间；保留原预警用量。")
+        }
+        return snapshot
     }
 
     /// Each canonical app is checked independently. A rollback only rebases its app.
@@ -103,11 +123,23 @@ extension AgentRuntime {
         catch {
             guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
             applicationAlertWindow.reset()
+            alertAttributionWindow.reset()
             applicationAlertMessage = "应用预警配置读取失败：\(error.localizedDescription)"
             return
         }
         guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
         trafficAlertWrites.retain(day: day, policy: policy, category: category)
+        // Attribution remains active when only interface alerts are enabled.
+        // Its failure cannot disable either independent interface alert.
+        do {
+            try alertAttributionWindow.consume(increments.map {
+                TrafficAlertApplication(identity: $0.identity, uploadedBytes: $0.uploadedBytes,
+                                        downloadedBytes: $0.downloadedBytes)
+            }, uptime: uptime, observedAt: now,
+                scope: "\(category.rawValue):\(day):\(pathGeneration):\(policy.version)",
+                windowSeconds: policy.windowSeconds, continuous: continuous, resetSources: resetSources)
+            alertAttributionMessage = ""
+        } catch { alertAttributionMessage = "预警应用归因不可用：\(error.localizedDescription)" }
         guard let limit = policy.applicationBurstBytes else {
             applicationAlertWindow.reset()
             let failure = await flushTrafficAlertWrites(kind: .applicationBurst, generation: generation, epoch: epoch)
@@ -139,7 +171,9 @@ extension AgentRuntime {
                     try trafficAlertWrites.stage(TrafficAlertEvent(category: category, day: day, kind: .applicationBurst,
                         sourceKey: key, sourceName: names[key] ?? key, observedBytes: usage.bytes,
                         thresholdBytes: limit, windowSeconds: policy.windowSeconds,
-                        observedSeconds: usage.observedSeconds, policyVersion: policy.version, occurredAt: now))
+                        observedSeconds: usage.observedSeconds, policyVersion: policy.version, occurredAt: now,
+                        applications: applicationAlertEvidence(key: key, usage: usage, uptime: uptime,
+                            scope: "\(category.rawValue):\(day):\(pathGeneration):\(policy.version)")))
                 }
             }
             message = applicationAlertWindow.isCollecting

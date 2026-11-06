@@ -39,7 +39,7 @@ extension QuotaStore {
                 throw TrafficAlertError.eventLimit
             }
             try database.execute("""
-                INSERT INTO traffic_alert_events (\(TrafficAlertRecord.columns)) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO traffic_alert_events (\(TrafficAlertRecord.columns)) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, try TrafficAlertRecord.bindings(event))
             return true
         }
@@ -72,6 +72,30 @@ extension QuotaStore {
                 UPDATE traffic_alert_events SET scheduled_at_ms = ? WHERE id = ? AND day = ? AND scheduled_at_ms IS NULL
                 """, [.integer(scheduled), .text(id), .text(day)])
         }
+    }
+
+    public func trafficAlertDetails(id: String, day: String, category: TrafficCategory) throws -> TrafficAlertEvent {
+        try StoreDay.validate(day)
+        guard day == (try StoreDay.label(at: clock(), calendar: calendar)) else { throw StoreError.inactiveDay }
+        guard let event = try trafficAlert(id: TrafficAlertRecord.identifier(id)),
+              event.day == day, event.category == category else { throw StoreError.unknownTrafficAlert(id) }
+        return event
+    }
+
+    /// One store-actor read freezes the latest committed daily attribution. It
+    /// never converts attribution into interface usage or backfills older events.
+    public func dailyAlertApplications(day: String, category: TrafficCategory, observedAt: Date) throws -> TrafficAlertApplications {
+        guard try hasApplicationUsage(day: day, category: category) else {
+            return .unavailable("预警触发时尚未观测到当天应用用量。")
+        }
+        let rows = try snapshot(day: day, category: category).filter { $0.usage.totalBytes > 0 }
+            .sorted { $0.usage.totalBytes == $1.usage.totalBytes ? $0.id < $1.id : $0.usage.totalBytes > $1.usage.totalBytes }
+        let applications = TrafficAlertApplications(items: rows.prefix(128).map {
+            TrafficAlertApplication(identity: $0.identity, uploadedBytes: $0.usage.uploadedBytes,
+                                    downloadedBytes: $0.usage.downloadedBytes)
+        }, observedAt: observedAt, omittedCount: max(0, rows.count - 128))
+        try applications.validate()
+        return applications
     }
 
     private func trafficAlert(id: String) throws -> TrafficAlertEvent? {

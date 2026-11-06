@@ -29,18 +29,26 @@ extension AppState {
 
     var applicationUsageItems: [ApplicationUsageItem] {
         let apps = applications.map { ApplicationUsageItem.application($0, knownUsage($0)) }
-        let proxy = categoryMihomoProxy
-        let sources = (proxy?.sources ?? []).map {
-            ApplicationUsageItem.clash($0, connected && snapshotIsCurrent ? $0.totalBytes : nil)
-        }
-        return (apps + sources).sorted {
+        return apps.sorted {
             let left = $0.bytes ?? -1
             let right = $1.bytes ?? -1
             return left == right ? $0.id < $1.id : left > right
         }
     }
 
-    /// Same category and ranking as the complete list. Unknown and zero values
+    /// Auxiliary children, kept separate from process totals and the top-three ranking.
+    var clashUsageItems: [ApplicationUsageItem] {
+        let sources = (categoryMihomoProxy?.sources ?? []).map {
+            ApplicationUsageItem.clash($0, connected && snapshotIsCurrent ? $0.totalBytes : nil)
+        }
+        return sources.sorted {
+            let left = $0.bytes ?? -1
+            let right = $1.bytes ?? -1
+            return left == right ? $0.id < $1.id : left > right
+        }
+    }
+
+    /// Same category and ranking as the complete process list. Unknown and zero values
     /// never displace a source with actual observed use in the quick overview.
     var topUsageItems: [ApplicationUsageItem] {
         Array(applicationUsageItems.filter { ($0.bytes ?? 0) > 0 }.prefix(3))

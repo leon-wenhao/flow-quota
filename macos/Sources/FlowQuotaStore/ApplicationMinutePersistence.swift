@@ -32,7 +32,7 @@ extension QuotaStore {
         try ApplicationTimelineGrouping.make(query: query, rows: applicationTimelineRows(query))
     }
 
-    /// Service-internal rows before display filtering/ranking, for merging session Clash minutes.
+    /// Service-internal rows preserving every process, alongside separate session Clash evidence.
     /// This unranked result is never sent directly over IPC.
     public func applicationTimelineRows(_ query: ApplicationTimelineQuery) throws -> [ApplicationUsageBucket] {
         try StoreDay.validate(query.day)

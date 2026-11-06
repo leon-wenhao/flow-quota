@@ -5,6 +5,7 @@ import FlowQuotaCore
     func enableAgent() async throws
     func repairDevelopmentAgent() async throws
     func fetchApplicationTimeline(_ query: ApplicationTimelineQuery) async throws -> ApplicationUsageTimeline
+    func fetchTrafficAlertDetails(id: String, day: String, category: TrafficCategory) async throws -> TrafficAlertEvent
     func fetchSnapshot() async throws -> AgentSnapshot
     func saveRule(appKey: String, rule: QuotaRule) async throws
     func setHotspotOverride(_ marked: Bool) async throws
@@ -21,6 +22,10 @@ import FlowQuotaCore
 // Existing metered-only clients remain usable, but never silently write an
 // ordinary-network setting into the metered ledger.
 extension AgentServiceClient {
+    public func fetchTrafficAlertDetails(id: String, day: String, category: TrafficCategory) async throws -> TrafficAlertEvent {
+        throw PlatformError.unavailable("当前服务不支持预警应用明细，请更新服务。")
+    }
+
     public func fetchApplicationTimeline(_ query: ApplicationTimelineQuery) async throws -> ApplicationUsageTimeline {
         throw PlatformError.unavailable("当前服务不支持应用分时记录，请更新服务。")
     }

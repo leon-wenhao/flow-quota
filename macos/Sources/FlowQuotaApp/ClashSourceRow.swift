@@ -21,7 +21,7 @@ struct ClashSourceRow: View {
     var body: some View {
         Button { showsDetails = true } label: {
             TrafficSourceRowContent(name: source.displayName, symbol: "arrow.triangle.branch",
-                status: subtitle, usage: UsageFormatter.bytes(usage), scope: "本次代理观测", compact: compact)
+                status: subtitle, usage: UsageFormatter.bytes(usage), scope: "代理内的辅助明细", compact: compact)
         }
         .buttonStyle(FlowQuotaRowButtonStyle())
         .accessibilityElement(children: .combine)

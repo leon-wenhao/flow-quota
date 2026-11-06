@@ -577,15 +577,15 @@ Writes retain the existing nettop cadence; no per-packet writes or second writer
 The service exposes a bounded on-demand interval query instead of attaching all
 app minutes to every snapshot. Only current local day, minute-aligned range
 within that day (up to 25 h for DST), and optional canonical app identity are
-accepted. SQL groups by 5 min (<=1 h) or 30 min. Display the top ten app identities
-by interval total, ties by key, plus an explicit remaining-app aggregate. An
-individual-app query never folds that identity into remaining apps. Returned
-rows are bounded by 50 buckets * 11 sources (a 25 h local day); arithmetic or IPC
-size errors remain visible, never silently truncate totals. No sampled minute
-means unknown, distinct from a positive sample_count with zero bytes. App sums
-can overlap and are not interface totals; Clash ephemeral sources stay outside
-this durable nettop view. Upload/download pies use the same interval and source
-colors; interface totals remain independently available in overview/details.
+accepted. SQL groups by 5 min (<=1 h) or 30 min. Preserve every process,
+including shared proxy kernels; do not fold low-ranked processes into a hidden
+remainder. Clash source evidence is separately namespaced and never summed with
+processes. Replies permit up to 50 buckets × 257 rows, with the unchanged 1 MiB
+IPC limit; size/capacity errors remain visible. The main chart independently
+reads interface minutes from the service snapshot, so a failed process query
+cannot remove the total. Missing minutes remain unknown, measured zero requires
+positive sample_count. Pies describe process observations, not a partition of
+physical bytes. See `traffic-accounting.md` for per-direction discrepancies.
 
 Migration 6→7 creates only this empty table transactionally and preserves existing
 rows/settings, without backfilling prior daily totals. Normal current-day pruning
@@ -595,8 +595,37 @@ secure_delete/WAL cleanup policy applies. UI switches/range requests cancel stal
 fetches and keep same-query chart content during polling; results from another
 category/range/day never appear under the current selection.
 
-2026-11-06 clarification: paired columns retain absolute byte heights; no percent
-normalization. Hover lists each displayed source for that bucket and direction,
-including measured zero, preserving the remaining-app sum. Ten named sources
-plus remaining keeps at most 550 rows in one bounded reply; IPC oversize remains
-a visible error. No schema or additional persistence change is required.
+2026-11-06 clarification: the primary paired columns show physical interface
+upload/download, preserving every observed byte when application identification
+fails. Process observations and auxiliary Clash sources remain fully inspectable
+in separate sections. No table or migration is needed for this presentation
+correction; no source, gap or proxy byte is written into another ledger.
+
+
+## Schema v8：预警触发时的应用归因（2026-11-06）
+
+业务实体仍是 `traffic_alert_events`，新增可空 `applications_json TEXT`，不新建表或索引。
+该列是事件证据的一部分，与事件在同一事务写入，发生后不随应用账本、名称或配置更新。
+JSON 编码版本由本次结构固定，包含 `items`（最多 128 项：canonical app key、触发时名称、上传及下载 integer bytes）、
+`observedAt`（最近应用观测的绝对时间，可空）、`omittedCount` 及有界 `notice`。
+所有计数非负，单项收发合计不超过 Int64.max；名称最多 256 UTF-8 bytes、key 最多 2048 bytes，JSON 最多 524288 bytes；
+读取时重新校验身份、唯一性、数值范围及排序，坏数据明确报错。JSON 作为一个不可变值整体读写，不使用 SQL JSON 函数。
+SQL CHECK 约束 TEXT/NULL 和编码字节上限；细项约束由同一个 Swift 模型在写入和读取处验证。
+
+- 每日接口预警：服务在阈值触发时读取同类别已提交的当天应用用量，并立即冻结；只表示最近已持久化的归因，应用与接口采样异步。
+- 接口短时预警：独立有界内存窗口保持应用方向增量，即使应用预警开关关闭也可归因；仅取落在接口事件连续观测窗口内的完整 delta 桶，不插值。
+  保留最多 450 桶／128 来源，使用单调时钟；切网、跨日、配置变化、暂停、重启及超过 8 秒的间断重建。
+  缺失或超限仅使明细不可用，不能阻止接口事件产生。接口时段与应用时段尾端可能不同，显示最近应用观测时间和边界说明。
+- 应用预警：冻结触发应用同一滚动窗口的上传／下载，不混入其他应用。
+- 超过 128 个正用量应用的日快照按合计降序保留前 128 项并记录省略数量；短时窗口超限显示不可用，不伪造其他应用合计。
+- 普通轮询／历史分页只返回前三项名称组成的最多 256 UTF-8 bytes 摘要；展开后按当前日、类别和事件 UUID 查询一个完整快照。
+  完整明细不随全部事件重复传输，不提高 1 MiB IPC 限制。通知只依赖原事件字段。
+
+v7→v8 使用 `ALTER TABLE ... ADD COLUMN ... DEFAULT NULL`，在既有迁移事务内执行；旧事件保留 NULL，界面显示“未记录应用明细”。
+不回填、不改旧计数、不重建数据库。精确 UUID 重试比较完整快照；ACK 只写 scheduled_at_ms。
+清理仍删除非当前日事件，JSON 随父行一起删除，沿用 secure_delete 及 WAL 截断，不做备份。
+按主键读取单条完整证据，常规摘要查询及冷却索引不变，无新增索引需求。
+
+依据：SQLite 官方 ALTER TABLE / ADD COLUMN 文档（https://www.sqlite.org/lang_altertable.html），新增可空列无需重写旧记录；
+SwiftUI `View.task(id:priority:_:)` 官方文档，用事件 UUID 与类别驱动按需读取并取消已离开视图的任务。
+适用工具链：Swift 6、macOS 14+；迁移、重试一致性、跨日清理、窗口边界及实际编译结果见本次测试。

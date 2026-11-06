@@ -81,9 +81,7 @@ final class AppState {
         return ""
     }
     var applications: [ApplicationSnapshot] {
-        categoryApplications.filter {
-            SystemProcessClassification(identity: $0.identity).visibleInApplicationUsage
-        }.sorted {
+        categoryApplications.sorted {
             let left = knownUsage($0) ?? -1
             let right = knownUsage($1) ?? -1
             return left == right ? $0.identity.key < $1.identity.key : left > right

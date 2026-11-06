@@ -4,9 +4,19 @@ import SwiftUI
 struct UsageTimelineTooltip: View {
     let selection: UsageStackSelection
     let sourceIDs: [String]
+    var processSelection: UsageStackSelection?
+    var clashSelection: UsageStackSelection?
+    var isInterface = false
+
+    private var evidence: [UsageApplicationSource] {
+        isInterface ? processSelection?.applications ?? [] : selection.applications
+    }
+    private var shownEvidence: [UsageApplicationSource] { Array(evidence.prefix(8)) }
 
     static let width: CGFloat = 272
-    var height: CGFloat { selection.totalBytes == nil ? 72 : 84 + CGFloat(selection.applications.count) * 18 }
+    var height: CGFloat {
+        selection.totalBytes == nil ? 72 : (isInterface ? 200 : 110) + CGFloat(shownEvidence.count) * 18
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -18,19 +28,30 @@ struct UsageTimelineTooltip: View {
             .font(.caption.weight(.semibold))
             if let total = selection.totalBytes {
                 HStack {
-                    Text("时段合计").foregroundStyle(.secondary)
+                    Text(isInterface ? "Mac 接口总量" : "进程观测合计").foregroundStyle(.secondary)
                     Spacer()
                     Text(UsageFormatter.bytes(total)).fontWeight(.semibold).monospacedDigit()
                 }
                 .font(.caption)
                 Divider()
                 VStack(spacing: 0) {
-                    ForEach(selection.applications) { app in
+                    ForEach(shownEvidence) { app in
                         row(app)
                     }
                 }
-                Text("已观测归因 · 可能重叠或不完整")
-                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                if evidence.count > shownEvidence.count {
+                    Text("共 \(evidence.count) 项，全部来源见下方明细").font(.caption2)
+                }
+                if isInterface {
+                    TrafficMeasurementStatus(total: total, processes: processSelection?.totalBytes)
+                    if let bytes = clashSelection?.totalBytes {
+                        Text("Clash 已识别来源：\(UsageFormatter.bytes(bytes))（辅助，勿重复相加）")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("进程观测 · 可能重叠，非接口总量")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             } else {
                 Text("未观测，用量未知").font(.caption).foregroundStyle(.secondary)
             }

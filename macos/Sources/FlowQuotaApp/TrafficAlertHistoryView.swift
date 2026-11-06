@@ -30,7 +30,7 @@ struct TrafficAlertHistoryView: View {
                     .padding(12)
                     .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                 }
-                TrafficAlertHistoryTable(events: events)
+                TrafficAlertHistoryTable(events: events, loadDetails: { try await state.loadTrafficAlertDetails($0) })
             }
         }
     }

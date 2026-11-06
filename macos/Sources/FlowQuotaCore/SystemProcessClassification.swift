@@ -8,9 +8,6 @@ public struct SystemProcessClassification: Equatable, Sendable {
         case unconfirmed
     }
 
-    /// Shared list/chart visibility; an exact known proxy identity is diagnostic only.
-    public var visibleInApplicationUsage: Bool { category != .sharedProxy }
-
     /// The exact input identity, including its original key and name.
     public let identity: AppIdentity
     public let displayName: String
@@ -51,8 +48,8 @@ public struct SystemProcessClassification: Equatable, Sendable {
             )
         case "exec:/Library/Application Support/clash-verge-service/cores/verge-mihomo":
             presentation = (
-                "Clash Verge 代理内核（Mihomo）",
-                "共享代理传输；来源应用未确认，可能与其他应用归因重叠。独立展示，不与 Clash 界面进程合并，也不与接口总量相加。",
+                "Clash 代理内核（来源应用待确认）",
+                "保留全部代理进程用量；原始应用未完全确认。Clash 识别来源是其中的辅助线索，不与内核用量再次相加；进程观测与接口可能存在时间或重复计量差异。",
                 .sharedProxy
             )
         default:

@@ -19,7 +19,7 @@ struct TopUsageListView: View {
             HStack {
                 Text("用量前三").font(.caption.weight(.semibold))
                 Spacer()
-                Text("归因可能重叠").font(.caption2).foregroundStyle(.secondary)
+                Text("进程观测，含代理").font(.caption2).foregroundStyle(.secondary)
             }
             if items.isEmpty {
                 Text(emptyMessage).font(.caption).foregroundStyle(.secondary)
@@ -45,7 +45,7 @@ struct TopUsageListView: View {
                 }
             }
             Spacer(minLength: 0)
-            Text("应用：今日归因 · Clash：本次观测")
+            Text("总量见上方 · 代理原始应用可能未确认")
                 .font(.caption2).foregroundStyle(.secondary)
         }
         .frame(height: 148, alignment: .top)

@@ -54,7 +54,7 @@ extension AgentRuntime {
             interfaceUsage: metered.interfaceUsage, interfaceSampledAt: metered.interfaceSampledAt,
             interfaceMessage: interfaceStatusMessage(at: now), trafficAlertPolicy: metered.trafficAlertPolicy,
             trafficAlertEvents: Array(metered.trafficAlertEvents.prefix(64)), pendingTrafficAlerts: Array(pending.prefix(16)),
-            trafficAlertMessage: interfaceAlertMessage + " " + applicationAlertMessage, trafficCategories: categories, mihomoProxy: mihomoProxy)
+            trafficAlertMessage: interfaceAlertMessage + " " + applicationAlertMessage + " " + alertAttributionMessage, trafficCategories: categories, mihomoProxy: mihomoProxy)
     }
 
     private func categorySnapshot(_ category: TrafficCategory, day: String,
@@ -62,7 +62,7 @@ extension AgentRuntime {
         let apps = try await store.snapshot(day: day, category: category)
         let observed = try await store.hasApplicationUsage(day: day, category: category)
         let policy = try await store.trafficAlertPolicy(category: category)
-        let events = try await store.trafficAlertEvents(day: day, category: category)
+        let events = try await store.trafficAlertEvents(day: day, category: category).map { $0.summaryOnly() }
         let usage = try await store.interfaceUsage(day: day, category: category)
         let minutes = try await store.interfaceUsageMinutes(day: day, category: category)
         let isActiveCategory = path.state.trafficCategory == category

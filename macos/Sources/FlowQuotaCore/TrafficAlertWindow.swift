@@ -57,7 +57,8 @@ public struct TrafficAlertWindow: Sendable {
                 // first retained bucket, rather than borrowing another app's age.
                 let seconds = max(1, Int((uptime - bucket.start) / 1_000_000_000))
                 totals[key] = WindowUsage(bytes: sum, observedSeconds: totals[key]?.observedSeconds
-                    ?? min(seconds, windowSeconds))
+                    ?? min(seconds, windowSeconds),
+                    startedAt: totals[key]?.startedAt ?? bucket.start)
             }
         }
         isCollecting = true
@@ -68,4 +69,11 @@ public struct TrafficAlertWindow: Sendable {
 public struct WindowUsage: Sendable, Equatable {
     public let bytes: Int64
     public let observedSeconds: Int
+    public let startedAt: UInt64
+
+    public init(bytes: Int64, observedSeconds: Int, startedAt: UInt64 = 0) {
+        self.bytes = bytes
+        self.observedSeconds = observedSeconds
+        self.startedAt = startedAt
+    }
 }

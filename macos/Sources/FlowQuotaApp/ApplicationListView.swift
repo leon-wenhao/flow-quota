@@ -20,6 +20,7 @@ struct ApplicationListView: View {
             Text(state.clashAttributionNotice)
                 .font(.caption2).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 8)
+            DailyTrafficOverview(state: state)
             Divider()
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -39,6 +40,17 @@ struct ApplicationListView: View {
                                 status: state.categoryMihomoProxy?.status ?? .unavailable)
                         }
                         Divider()
+                    }
+                    if !state.clashUsageItems.isEmpty {
+                        DisclosureGroup("Clash 识别来源（辅助明细，不重复计入总量）") {
+                            ForEach(state.clashUsageItems) { item in
+                                if case .clash(let source, let usage) = item {
+                                    ClashSourceRow(source: source, usage: usage,
+                                        status: state.categoryMihomoProxy?.status ?? .unavailable)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 10)
                     }
                 }
             }

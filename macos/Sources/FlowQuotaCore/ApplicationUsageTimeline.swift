@@ -1,7 +1,7 @@
 import Foundation
 
 /// Current-day, minute-aligned attribution query. The service validates dates and
-/// bounds and returns at most 50 time buckets × (ten applications + remaining).
+/// bounds. All measured sources are retained; a capacity error is explicit.
 public struct ApplicationTimelineQuery: Codable, Sendable, Equatable, Hashable {
     public let day: String
     public let category: TrafficCategory
@@ -45,7 +45,7 @@ public struct ApplicationUsageBucket: Codable, Sendable, Equatable, Identifiable
 }
 
 public struct ApplicationUsageTimeline: Codable, Sendable, Equatable {
-    public static let maximumNamedSources = 10
+    public static let maximumNamedSources = 256
     public static let maximumTimeBuckets = 50
     public static let maximumRows = maximumTimeBuckets * (maximumNamedSources + 1)
 

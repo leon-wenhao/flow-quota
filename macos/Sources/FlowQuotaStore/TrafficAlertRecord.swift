@@ -6,7 +6,7 @@ import FlowQuotaCore
 enum TrafficAlertRecord {
     static let columns = """
         id, day, kind, source_key, source_name, observed_bytes, threshold_bytes,
-        window_seconds, observed_seconds, policy_version, occurred_at_ms, scheduled_at_ms, category
+        window_seconds, observed_seconds, policy_version, occurred_at_ms, scheduled_at_ms, category, applications_json
         """
 
     static func milliseconds(_ date: Date) throws -> Int64 {
@@ -24,6 +24,7 @@ enum TrafficAlertRecord {
 
     static func validate(_ event: TrafficAlertEvent) throws {
         try event.validate()
+        guard event.applicationSummary == event.applications?.summary else { throw TrafficAlertError.invalidEvent }
         if event.kind == .applicationBurst, !AppKey.isCanonical(event.sourceKey) {
             throw TrafficAlertError.invalidEvent
         }
@@ -47,6 +48,7 @@ enum TrafficAlertRecord {
         return try stored.category == event.category && stored.day == event.day && stored.kind == event.kind
             && stored.sourceKey.utf8.elementsEqual(event.sourceKey.utf8)
             && stored.sourceName.utf8.elementsEqual(event.sourceName.utf8)
+            && stored.applications == event.applications
             && stored.observedBytes == event.observedBytes && stored.thresholdBytes == event.thresholdBytes
             && stored.windowSeconds == event.windowSeconds && stored.observedSeconds == event.observedSeconds
             && stored.policyVersion == event.policyVersion
@@ -55,20 +57,31 @@ enum TrafficAlertRecord {
     }
 
     static func bindings(_ event: TrafficAlertEvent) throws -> [SQLValue] {
-        [.text(try identifier(event.id)), .text(event.day), .text(event.kind.rawValue),
+        let encoded: SQLValue
+        if let applications = event.applications {
+            let data = try JSONEncoder().encode(applications)
+            guard data.count <= 524288 else { throw TrafficAlertError.invalidEvent }
+            encoded = .text(String(decoding: data, as: UTF8.self))
+        } else { encoded = .null }
+        return [.text(try identifier(event.id)), .text(event.day), .text(event.kind.rawValue),
          .text(event.sourceKey), .text(event.sourceName), .integer(event.observedBytes), .integer(event.thresholdBytes),
          .integer(Int64(event.windowSeconds)), .integer(Int64(event.observedSeconds)), .integer(event.policyVersion),
-         .integer(try milliseconds(event.occurredAt)), .null, .text(event.category.rawValue)]
+         .integer(try milliseconds(event.occurredAt)), .null, .text(event.category.rawValue), encoded]
     }
 
     static func read(_ row: SQLiteStatement) throws -> TrafficAlertEvent {
         guard let kind = TrafficAlertKind(rawValue: row.text(2)) else { throw TrafficAlertError.invalidEvent }
         guard let category = TrafficCategory(rawValue: row.text(12)) else { throw TrafficAlertError.invalidEvent }
+        let applications: TrafficAlertApplications?
+        if let json = row.optionalText(13) {
+            guard json.utf8.count <= 524288 else { throw TrafficAlertError.invalidEvent }
+            applications = try JSONDecoder().decode(TrafficAlertApplications.self, from: Data(json.utf8))
+        } else { applications = nil }
         let event = TrafficAlertEvent(category: category, id: row.text(0), day: row.text(1), kind: kind,
             sourceKey: row.text(3), sourceName: row.text(4), observedBytes: row.integer(5),
             thresholdBytes: row.integer(6), windowSeconds: Int(row.integer(7)), observedSeconds: Int(row.integer(8)),
             policyVersion: row.integer(9), occurredAt: date(row.integer(10)),
-            scheduledAt: row.optionalInteger(11).map(date))
+            scheduledAt: row.optionalInteger(11).map(date), applications: applications)
         try event.validate()
         if kind == .applicationBurst, !AppKey.isCanonical(event.sourceKey) { throw TrafficAlertError.invalidEvent }
         return event

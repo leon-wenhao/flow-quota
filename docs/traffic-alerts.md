@@ -52,3 +52,25 @@
 - 来源上限与桶上限使用不同诊断；持续 129 来源不会交替显示健康状态，恢复基线也不冒充已连续观测。
 
 验证使用 `TrafficAlertRegressionTests`、`TrafficAlertRetryTests`、`TrafficAlertWriteBufferTests`、`TrafficAlertWindowRecoveryTests` 和 `SamplingClockTests`，涵盖原五项复现、窗口滑出后重试、同帧应用故障隔离、队列 130 项上限、版本／跨日清理、回退来源及实际区间、默认采样器时钟和原有冷却语义。未做真实休眠唤醒或热点实验，未以模拟结果声明真实通知横幅验收。
+
+
+## 预警应用明细（schema v8，2026-11-06）
+
+预警记录下方简要列出触发时用量最高的三个应用，点击整行展开上传、下载及合计。
+每日预警读取触发时最近已提交的当天应用账本；短时预警只取同一连续时间窗口内完整观测的应用增量；
+应用预警只保留触发应用。应用与物理接口异步采样，归因可能重叠，不能合计为接口总量。
+本次明细来自 nettop，不包含 Clash 网站标签；代理内核／共享下载服务继续显示精确身份对应的职责，不能推断原始请求方。
+旧记录显示“未记录应用明细”，未观测、超限和读取失败会显示原因，不使用当前用量回填。
+每条最多保留 128 个应用，日快照超出时明确显示省略数；短时来源窗口超限时明细不可用但接口预警继续。
+数据只保留当天，跨日与事件一起清理。常规轮询和分页只传有界名称摘要，展开时按 UUID／日／类别读取完整证据。
+实现入口：`TrafficAlertApplications`、`TrafficAlertAttributionWindow`、`dailyAlertApplications`、`TrafficAlertApplicationsView`。
+验证使用临时数据库、模拟增量和原生 NSHostingView 渲染，不生成任何热点流量。
+
+
+验证记录（2026-11-06）：Swift 6.4.2、macOS SDK 27.2，最低部署 macOS 14。
+`./scripts/test-macos.sh` 全部 375 项通过（Store 86、Platform 111、Core 18、App 116、Agent 44）。
+新增验证覆盖 v7→v8 及迁移失败回滚、旧事件 NULL 不回填、快照重开／ACK／精确重试和冲突、
+分类隔离与跨日清理、方向累计／窗口左右边界／间断／128 来源及 450 桶容量、应用提醒关闭时的接口归因、
+单应用预警证据一致性与现有 IPC 上限。500／720pt 的原生 NSHostingView 渲染及整行展开、按需读取均通过，
+图片使用明确模拟数据。日志位于忽略目录 `.artifacts/alert-applications-tests.log`。
+未替换本机已安装应用、未迁移用户实际数据库、未做热点真实流量实验；真实后台采样验收不由模拟测试代替。

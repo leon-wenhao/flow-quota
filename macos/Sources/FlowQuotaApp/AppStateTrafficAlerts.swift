@@ -38,6 +38,22 @@ extension AppState {
         }
     }
 
+    func loadTrafficAlertDetails(_ event: TrafficAlertEvent) async throws -> TrafficAlertEvent {
+        guard connected, snapshotIsCurrent, event.day == Self.localDay(),
+              selectedTrafficCategory == event.category else { throw TrafficAlertError.invalidEvent }
+        let detail = try await client.fetchTrafficAlertDetails(id: event.id, day: event.day, category: event.category)
+        try Task.checkCancellation()
+        guard connected, snapshotIsCurrent, event.day == Self.localDay(),
+              selectedTrafficCategory == event.category, detail.id == event.id,
+              detail.day == event.day, detail.category == event.category,
+              detail.kind == event.kind, detail.sourceKey == event.sourceKey,
+              detail.observedBytes == event.observedBytes, detail.occurredAt == event.occurredAt else {
+            throw TrafficAlertError.invalidEvent
+        }
+        try detail.validate()
+        return detail
+    }
+
     func deliverTrafficAlerts(_ next: AgentSnapshot) async {
         let proposals = Array(next.pendingTrafficAlerts.filter { trafficAlertEligible($0) }.prefix(16))
         await trafficAlertDelivery.deliver(proposals) { [weak self] event in

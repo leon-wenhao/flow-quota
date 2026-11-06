@@ -42,19 +42,19 @@ private let clashCoreKey = "exec:/Library/Application Support/clash-verge-servic
     return state
 }
 
-@MainActor @Test func clashSourcesShareTheListWithoutBecomingLedgerAppsOrInflatingInterfaceTotals() async throws {
+@MainActor @Test func clashChildrenStaySeparateWhileKernelAndInterfaceRemainVisible() async throws {
     let state = try await attributionState()
-    #expect(state.applicationUsageItems.count == 3)
-    #expect(state.applications.map(\.id) == ["app:/Applications/Google Chrome.app"])
-    #expect(!state.applications.contains { $0.id == clashCoreKey })
-    let proxyNames = state.applicationUsageItems.compactMap { item -> String? in
+    #expect(state.applicationUsageItems.count == 2)
+    #expect(state.applications.map(\.id) == ["app:/Applications/Google Chrome.app", clashCoreKey])
+    #expect(state.applications.contains { $0.id == clashCoreKey })
+    let proxyNames = state.clashUsageItems.compactMap { item -> String? in
         if case .clash(let source, _) = item { return source.displayName }; return nil
     }
     #expect(proxyNames == ["YouTube（Clash）", "虎牙直播（Clash）"])
     #expect(state.totalUsage == 2_100_000_000)
     #expect(state.categoryApplications.count == 2) // Durable identities remain intact.
     state.selectedTrafficCategory = .metered
-    #expect(state.applicationUsageItems.count == 1)
+    #expect(state.applicationUsageItems.count == 2)
     #expect(state.categoryMihomoProxy == nil)
     #expect(state.totalUsage == 2_100_000_000)
 }
@@ -62,12 +62,12 @@ private let clashCoreKey = "exec:/Library/Application Support/clash-verge-servic
 @MainActor @Test func oldDayProxySourcesAreNotShownAsTodaysUsage() async throws {
     let state = try await attributionState(proxyDay: "2000-01-01")
     #expect(state.categoryMihomoProxy == nil)
-    #expect(state.applicationUsageItems.count == 1)
+    #expect(state.applicationUsageItems.count == 2)
 }
 
 @MainActor @Test func pausedProxySourcesRetainObservedUseAndExplainWhoseStateItIs() async throws {
     let state = try await attributionState(status: .paused)
-    #expect(state.applicationUsageItems.first?.bytes == 1_200_000_000)
+    #expect(state.clashUsageItems.first?.bytes == 1_200_000_000)
     #expect(state.clashAttributionNotice.contains("Flow Quota"))
     #expect(state.clashAttributionNotice.contains("Clash 本身"))
     var order = ApplicationListOrder()

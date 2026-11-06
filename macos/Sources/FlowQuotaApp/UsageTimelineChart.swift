@@ -3,6 +3,9 @@ import SwiftUI
 
 struct UsageTimelineChart: View {
     let data: ApplicationTimelinePresentation
+    var processes: ApplicationTimelinePresentation?
+    var clash: ApplicationTimelinePresentation?
+    var isInterface = false
     @Environment(\.chartTooltipViewport) private var tooltipViewport
     @State private var hoverLocation: CGPoint?
 
@@ -15,7 +18,7 @@ struct UsageTimelineChart: View {
                     yStart: .value("字节", Double(segment.lower)), yEnd: .value("字节", Double(segment.upper)))
                     .foregroundStyle(color(segment.source.id))
                     .accessibilityLabel("\(time(slot.start))–\(time(slot.end))，\(segment.source.name)\(segment.direction.rawValue)")
-                    .accessibilityValue("\(UsageFormatter.bytes(segment.bytes))，仅含已观测归因，可能重叠")
+                    .accessibilityValue("\(UsageFormatter.bytes(segment.bytes))，\(isInterface ? "接口总量" : "进程观测，可能重叠")")
             }
             ForEach(data.summary.slots.filter { $0.sampleCount > 0 }) { slot in
                 ForEach(UsageDirection.allCases) { direction in
@@ -50,7 +53,7 @@ struct UsageTimelineChart: View {
             }
         }
         .frame(height: 190)
-        .accessibilityLabel("应用分时归因，每个时段左柱上传、右柱下载，按应用堆叠；空白未观测，圆点为已观测零用量")
+        .accessibilityLabel(isInterface ? "Mac 分时总流量，左柱上传、右柱下载；含全部接口观测，空白未知，圆点为零" : "进程分时观测，可能重叠；空白未观测，圆点为零")
         .onChange(of: data.summary.interval) { _, _ in hoverLocation = nil }
         .onChange(of: data.sources.map(\.id)) { _, _ in hoverLocation = nil }
         .onDisappear { hoverLocation = nil }
@@ -68,7 +71,10 @@ struct UsageTimelineChart: View {
                let location = ChartTooltipLayout.plotLocation(point, in: plot),
                let date: Date = proxy.value(atX: location.x), let bytes: Double = proxy.value(atY: location.y),
                let selection = data.selection(at: date, bytes: bytes) {
-                let tooltip = UsageTimelineTooltip(selection: selection, sourceIDs: data.sources.map(\.id))
+                let tooltip = UsageTimelineTooltip(selection: selection,
+                    sourceIDs: (processes ?? data).sources.map(\.id),
+                    processSelection: processes?.selection(at: date, bytes: bytes),
+                    clashSelection: clash?.selection(at: date, bytes: bytes), isInterface: isInterface)
                 let tooltipSize = CGSize(width: min(UsageTimelineTooltip.width, max(0, size.width - 8)), height: tooltip.height)
                 let origin = ChartTooltipLayout.origin(at: point, size: tooltipSize, bounds: bounds)
                 tooltip

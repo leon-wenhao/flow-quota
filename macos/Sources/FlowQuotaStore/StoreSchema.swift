@@ -1,7 +1,7 @@
 import Foundation
 
 enum StoreSchema {
-    static let currentVersion: Int64 = 7
+    static let currentVersion: Int64 = 8
     static let nonemptyKey = "typeof(app_key) = 'text' AND length(trim(app_key)) > 0"
 
     static func migrate(_ database: SQLiteConnection) throws {
@@ -41,6 +41,14 @@ enum StoreSchema {
             if version < 7 {
                 for sql in versionSeven { try database.execute(sql) }
                 try database.execute("PRAGMA user_version = 7")
+            }
+            if version < 8 {
+                try database.execute("""
+                    ALTER TABLE traffic_alert_events ADD COLUMN applications_json TEXT DEFAULT NULL
+                    CHECK(applications_json IS NULL OR (typeof(applications_json) = 'text'
+                      AND length(CAST(applications_json AS BLOB)) <= 524288))
+                    """)
+                try database.execute("PRAGMA user_version = 8")
             }
             // Reject legacy collisions explicitly; never merge or discard usage.
             let keys = try database.query("SELECT app_key FROM applications") { $0.text(0) }

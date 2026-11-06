@@ -207,3 +207,12 @@ measurement validation.
 - SDK 同一头文件的 `unregisterWithCompletionHandler:`：完成回调在旧进程终止后执行，此后才可安全重注册。本次沿用 Swift 的 `try await service.unregister()`，等待后调用 `register()`，不使用不等待进程退出的同步注销替代。
 - 沿用 Apple `NSXPCConnection` 的 `setCodeSigningRequirement`、错误代理与 interruption／invalidation 回调；仅将传输失败与 Agent 返回的业务错误分型，双向 designated requirement 校验不变。恢复后仍通过原 XPC 路径读取快照和等待开始采集 ACK，不能以注册状态替代连接成功。
 - 验证：Swift 6.4.2 编译及模拟服务生命周期回归；真实旧进程覆盖安装后的 SMAppService 恢复尚未实机复验，不将模拟生命周期测试当作系统注册验收。未启停本机实际采样服务、未生成验收网络流量。
+
+
+## 完整总量与来源保留（2026-11-06）
+
+- 继续使用既有采集输入，没有引入新的系统 API、依赖、网络内容采集或数据库实体。项目锁定 Swift tools 6.0、最低 macOS 14、Sparkle 2.10.1；本轮使用本机 Swift 6.4.2 / macOS SDK 27.2 编译。
+- 已重新核对本机 Apple `/usr/share/man/man1/nettop.1`：`-P` 只显示进程汇总，`external` 包含所有非 loopback 接口。它与选定的单一物理接口不是相同观测范围，文档没有保证进程数相加等于该接口字节，也不能证明代理原始请求应用。
+- 已重新核对本机 SDK `usr/include/net/if_var.h` 的 `if_data64`：`ifi_ibytes` / `ifi_obytes` 是 64 位接收／发送 octet 累计。沿用路由 `sysctl` 的接口选择、校验与增量累积；展示层从既有接口分钟记录取得主图量，不从应用或 Clash API 合计替代。
+- 因观测范围独立，保留进程、单列 Clash 辅助线索，并分别显示上传／下载差额属于本项目的诚实展示策略，不能解释为平台提供了精确的原始应用逐字节归属。接口大于进程时不凭减法创建“未知应用”账本，进程大于接口时也不裁剪。
+- 验证使用合成计数、临时 SQLite 及本地原生渲染；全量测试、双架构 release 编译、ad-hoc 严格签名和静态审计结果见 `implementation-status.md`。没有启动实验采样或生成热点验收流量；最低 macOS 14、Intel 真机及运营商对账不在本轮验收结论内。

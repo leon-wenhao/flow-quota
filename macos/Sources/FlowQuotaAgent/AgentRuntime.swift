@@ -25,6 +25,8 @@ actor AgentRuntime {
     var gaps = 0
     var interfaceAlertWindow = TrafficAlertWindow()
     var applicationAlertWindow = TrafficAlertWindow()
+    var alertAttributionWindow = TrafficAlertAttributionWindow()
+    var alertAttributionMessage = ""
     var trafficAlertWrites = TrafficAlertWriteBuffer()
     var trafficAlertEpoch: UInt64 = 0
     var interfaceAlertMessage = "接口短时窗口待建立。"
@@ -67,16 +69,18 @@ actor AgentRuntime {
                 clashNotice: mihomoAccumulator.timelineNotice(for: query.category)))
         case .snapshot:
             return .snapshot(try await snapshot())
+        case .trafficAlertDetails(let category, let day, let id):
+            return .trafficAlertDetails(try await store.trafficAlertDetails(id: id, day: day, category: category))
         case .trafficAlertHistory(let day, let offset):
             guard day == (try LocalDay.key(for: Date(), in: .current)), (0...256).contains(offset) else {
                 throw TrafficAlertError.invalidEvent
             }
-            return .trafficAlertHistory(try await store.trafficAlertEvents(day: day, limit: 32, offset: offset))
+            return .trafficAlertHistory(try await store.trafficAlertEvents(day: day, limit: 32, offset: offset).map { $0.summaryOnly() })
         case .categoryTrafficAlertHistory(let category, let day, let offset):
             guard day == (try LocalDay.key(for: Date(), in: .current)), (0...256).contains(offset) else {
                 throw TrafficAlertError.invalidEvent
             }
-            return .trafficAlertHistory(try await store.trafficAlertEvents(day: day, limit: 32, offset: offset, category: category))
+            return .trafficAlertHistory(try await store.trafficAlertEvents(day: day, limit: 32, offset: offset, category: category).map { $0.summaryOnly() })
         case .saveCategoryTrafficAlertPolicy(let category, let policy):
             try await store.saveTrafficAlertPolicy(policy, category: category)
             try trafficAlertPolicyChanged(policy, category: category)

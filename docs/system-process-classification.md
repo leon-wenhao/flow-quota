@@ -1,5 +1,7 @@
 # 系统进程展示分类
 
+> 当前流量口径（2026-11-06）：以 [流量总量与应用来源](traffic-accounting.md) 为准。主图完整显示接口用量，保留代理内核及全部已观测进程，Clash 辅助线索单列，未识别／计量差额直接说明。下文早期验收中的隐藏内核、前十合并或应用合计主图是历史实现，不再适用。
+
 核对日期：2026-11-05。只增加 FlowQuotaCore 的展示层结果与测试，不接入采样、不改 identity key、数据库、账本、额度或规则，也不改变现有应用分组。
 
 ## 公共 API 与调用边界
@@ -52,6 +54,6 @@ let result = SystemProcessClassification(identity: identity)
 
 ## 共享代理补充（2026-11-05）
 
-本机 `ps` 的 UID／可执行路径及公开 `proc_pidpath` 共同确认 root 运行 `/Library/Application Support/clash-verge-service/cores/verge-mihomo`，当前系统代理指向 `127.0.0.1:7897`。仅完整 `exec:` key 进入 sharedProxy 分类，友好名为“Clash Verge 代理内核（Mihomo）”；仍保留原始身份，不合并到普通用户的 Clash Verge 界面。此分类不是签名认证，也不确认每条连接用途或原始请求方。其他路径不因包含 clash／mihomo 名称而继承分类。
+本机 `ps` 的 UID／可执行路径及公开 `proc_pidpath` 共同确认 root 运行 `/Library/Application Support/clash-verge-service/cores/verge-mihomo`，当前系统代理指向 `127.0.0.1:7897`。仅完整 `exec:` key 进入 sharedProxy 分类，当前友好名为“Clash 代理内核（来源应用待确认）”；仍保留原始身份，不合并到普通用户的 Clash Verge 界面。此分类不是签名认证，也不确认每条连接用途或原始请求方。其他路径不因包含 clash／mihomo 名称而继承分类。
 
 文案明确共享代理、来源应用未知、与其他归因可能重叠，不与接口总量相加。新增测试检查精确路径、错误 key 类型、相似路径拒绝、原始身份保留和界面身份独立。公开进程身份修复、只读证据和未实测边界见 `vpn-attribution.md`。此前“本次未运行共享测试”的记录指壁纸分类初始阶段；本轮完整测试见 `implementation-status.md`。

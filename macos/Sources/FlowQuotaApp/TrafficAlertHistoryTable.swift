@@ -11,8 +11,11 @@ private enum TrafficAlertTableLayout {
     static let padding: CGFloat = 14
 }
 
+typealias TrafficAlertDetailsLoader = @MainActor (TrafficAlertEvent) async throws -> TrafficAlertEvent
+
 struct TrafficAlertHistoryTable: View {
     let events: [TrafficAlertEvent]
+    var loadDetails: TrafficAlertDetailsLoader? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,7 +24,7 @@ struct TrafficAlertHistoryTable: View {
                 TrafficAlertEmptyRow()
             } else {
                 ForEach(events) { event in
-                    TrafficAlertTableRow(event: event)
+                    TrafficAlertTableRow(event: event, loadDetails: loadDetails)
                     if event.id != events.last?.id { Divider().padding(.horizontal, TrafficAlertTableLayout.padding) }
                 }
             }
@@ -75,6 +78,7 @@ private struct TrafficAlertEmptyRow: View {
 
 private struct TrafficAlertTableRow: View {
     let event: TrafficAlertEvent
+    let loadDetails: TrafficAlertDetailsLoader?
     @State private var detailsExpanded = false
 
     private var source: SystemProcessClassification {
@@ -99,13 +103,17 @@ private struct TrafficAlertTableRow: View {
                         .font(.caption).monospacedDigit()
                         .frame(width: TrafficAlertTableLayout.time, alignment: .leading)
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(typeTitle).font(.subheadline.weight(.semibold))
+                        Text(typeTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
                         Text(sourceTitle).font(.caption).foregroundStyle(.secondary)
-                            .truncationMode(.middle)
+                            .truncationMode(.middle).lineLimit(1)
+                        if event.kind != .applicationBurst {
+                            Text(event.applicationSummary.map { "主要应用：" + $0 } ?? "未记录应用明细")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                        }
                     }
-                    .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .help(sourceTitle)
+                    .help(event.applicationSummary ?? sourceTitle)
                     VStack(alignment: .trailing, spacing: 5) {
                         Text(UsageFormatter.bytes(event.observedBytes)).font(.subheadline.weight(.medium))
                         Text("阈值 \(UsageFormatter.bytes(event.thresholdBytes))")
@@ -137,7 +145,7 @@ private struct TrafficAlertTableRow: View {
             .accessibilityHint(detailsExpanded ? "收起记录详情" : "展开记录详情")
             if detailsExpanded {
                 Divider().padding(.horizontal, TrafficAlertTableLayout.padding)
-                TrafficAlertDetails(event: event, source: source)
+                TrafficAlertDetails(event: event, source: source, loadDetails: loadDetails)
                     .padding(TrafficAlertTableLayout.padding)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -148,9 +156,12 @@ private struct TrafficAlertTableRow: View {
 private struct TrafficAlertDetails: View {
     let event: TrafficAlertEvent
     let source: SystemProcessClassification
+    let loadDetails: TrafficAlertDetailsLoader?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            TrafficAlertApplicationsView(event: event, loadDetails: loadDetails)
+            Divider().padding(.vertical, 6)
             Text("预警类型：\(event.kind.title)")
             Text("网络类别：\(event.category.title)")
             Text(event.kind == .applicationBurst ? source.detail
