@@ -37,3 +37,16 @@
 ## 验收边界
 
 当前应用为 ad-hoc 开发签名，未 Developer ID 签名、未 Apple 公证。公开说明已明确；未验收另一台全新 Mac 的 Gatekeeper 打开流程或通知授权流程。Intel 包完成交叉编译和静态检查，尚未 Intel 真机运行验收。未进行运营商误差对照。旧版需要手动安装一次包含公开更新地址的版本。
+
+
+## 0.1.1 重新打包发布（2026-11-06）
+
+- 对外名称为 `Flow Quota 0.1.1`；发布标题、说明标题和应用内当前版本不再显示括号中的 build。内部构建号为 22，唯一 tag 为 `v0.1.1-build.22`，保留更新排序与追踪语义。
+- 打包源码提交 `cd7ef1f18e47476705b4ebdd98b61f01f7c5f023` 已推送私有 main，远端与本地一致。包含最新预警记录表格、空状态、悬停描边移除及版本展示调整。
+- 341 项 Swift Testing、37 项 XCTest 和 52 项发布离线测试通过；双架构 release 构建、App 文件白名单、架构、最低系统版本及严格签名检查通过。两份 DMG checksum 验证、只读挂载签名检查与主程序／Agent 二进制一致性检查通过，挂载已推出。
+- 正式发布于 2026-11-06 10:41:02（Asia/Shanghai），Release ID `436039000`，六个附件的大小、状态与 SHA-256 全部一致，之后激活公开清单；再次通过 Contents API 核对，清单与本地逐字节一致。
+- Apple Silicon DMG：2,365,952 bytes，SHA-256 `948fff81b6692bef105a4b28f08aa09e223b9973320c04d77e930cccd42cce29`。
+- Intel DMG：2,477,568 bytes，SHA-256 `f62e724398e2a5442ccb935466d8145f2decd85874deb110872b766c777eacd0`。
+- 发布页：<https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.1-build.22>。本地 bundle：`.artifacts/releases/FlowQuota-0.1.1-build-22-release/`；验证证据：`.artifacts/release-0.1.1-*.log` 及 `.artifacts/release-0.1.1-online-verification.json`。
+- Raw 更新清单入口在当前网络再次出现 20 秒超时、0 bytes；公开发布与 API 清单验证成功不代表当前网络中的客户端检查更新已通过。该连通性限制仍未解除，未为验收下载公开 DMG。
+- 本轮仅打包发布，不替换本机正在采集的 App、不操作生产数据库；没有生成测试上传、下载或测速流量。ad-hoc、未公证及未完成 Intel 真机运行的边界保持不变。
