@@ -1,5 +1,19 @@
 # 提醒版实施与验证记录
 
+## 0.1.9 正式发布核验（2026-11-06）
+
+已发布公开 Release `0.1.9` 并激活为 latest，发布时间为 2026-11-06 23:57:44（Asia/Shanghai）。内部构建号 30，tag `v0.1.9` 精确指向源码提交 `fad9e0a333b323704f181cf34f44482fa857ab7e`；发布后补充本段记录的文档提交不改变该 tag。
+
+- arm64 与 x86_64 release 构建、严格 ad-hoc 签名、Sparkle 原始嵌套签名、架构／版本／最低 macOS 14 及应用文件白名单审计通过。
+- 八个正式附件完整，GitHub 返回的上传状态、大小、SHA-256 与本地逐项一致；无数据库、日志、调试符号或本机配置附件。
+- 两份 appcast 与 DMG 经 Ed25519 签名及提交公钥验证；重新读取线上两份 appcast 和 update-manifest，与本地已验签 bundle 一致，版本为 0.1.9／构建号 30。
+- 三个公开 `releases/latest/download/` 更新入口均返回 HTTP 200，响应字节与本地已验签文件一致。只读取小型更新元数据，没有为验收重新下载 DMG。
+- arm64 DMG：3,577,856 bytes，SHA-256 `d695789dc4deb56e51672cd254d26bf31442d0d59dfb89c8b4b951c7314fa60b`；x86_64 DMG：3,713,536 bytes，SHA-256 `25e6d15b2ecd17c26d485fd37b83e0cebd1481005339c08f24ad0051b3aab8b3`。
+
+证据：`.artifacts/release-0.1.9-build.log`、`.artifacts/release-0.1.9-publish.log`、`.artifacts/release-0.1.9-verification.json`、`.artifacts/release-0.1.9-public-update-entry-verification.json`。Git 直连推送曾超时，使用系统已配置的本地代理完成推送，未改全局 Git 设置。
+
+当前仍为 ad-hoc、未 Apple 公证；未安装替换本机应用，未验证 Intel／macOS 14 真机或真实跨版本替换，未生成热点实验流量。用户可主动点击“检查更新”，无启动或后台自动检查。
+
 ## 0.1.9 发布准备与全量回归（2026-11-06）
 
 本次整合退出等待与服务超时恢复、所选时段全部来源排行及窗口布局、手动热点入口收起、VPN／代理来源兼容范围说明，以及 DMG 系统临时目录与中断清理。外部版本 0.1.9，内部构建号 30；Release 与说明标题仅显示三段版本号，tag 使用 `v0.1.9`。发布说明改为本次变更，不重复使用 0.1.8 的更新列表。
