@@ -25,7 +25,7 @@ gh repo create leon-wenhao/flow-quota-releases --public \
 
 ## 版本与本地验证
 
-`version.env` 是版本源，build 递增。tag 使用 `v版本-build.构建号`，不覆盖正式版本。例如：
+`version.env` 是版本源，build 递增。对外 Release 标题、发布说明标题及应用内版本仅展示三段版本号（如 `Flow Quota 0.1.1`），不附加括号中的 build；内部构建号、清单及唯一 tag 保留用于更新排序和追踪。tag 使用 `v版本-build.构建号`，不覆盖正式版本。例如：
 
 ```bash
 ./scripts/set-version.sh 0.1.0 19 \

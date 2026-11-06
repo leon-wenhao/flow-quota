@@ -97,7 +97,7 @@ def _checksums(assets):
 
 def _notes(version, build, minimum):
     # Fixed text prevents private source metadata from entering public notes.
-    return """# Flow Quota {version}（build {build}）
+    return """# Flow Quota {version}
 
 ## 功能概述
 

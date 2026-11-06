@@ -82,20 +82,13 @@ struct FlowQuotaTextButtonStyle: ButtonStyle {
     }
 }
 
-/// Interaction feedback leaves the label's geometry unchanged during hover/disable.
+/// Interaction feedback leaves the label's geometry unchanged during disable.
 struct FlowQuotaInteractionFeedback: ViewModifier {
     @Environment(\.isEnabled) private var isEnabled
-    @State private var hovered = false
 
     func body(content: Content) -> some View {
         content
-            .overlay {
-                RoundedRectangle(cornerRadius: FlowQuotaTheme.controlRadius, style: .continuous)
-                    .strokeBorder(FlowQuotaTheme.accent.opacity(hovered && isEnabled ? 0.32 : 0), lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
             .opacity(isEnabled ? 1 : 0.42)
-            .onHover { hovered = $0 }
     }
 }
 

@@ -87,6 +87,7 @@ class ReleaseBundleTests(unittest.TestCase):
         for secret in ("deadbeef" * 5, "/private/source/tree", "DO-NOT-PUBLISH", "private/source"):
             self.assertNotIn(secret, public)
         notes = (self.output / "RELEASE-NOTES.md").read_text()
+        self.assertEqual(notes.splitlines()[0], "# Flow Quota 1.2.3")
         for text in ("功能概述", "macOS 14.0", "arm64", "x86_64", "ad-hoc", "公证",
                      "隐私与安全性", "仍要打开", "不阻断连接"):
             self.assertIn(text, notes)

@@ -79,7 +79,7 @@ def publish(bundle, repo, activate):
         # This API tag points only to the independent public main history.
         ensure_public_tag(repo, tag)
         run("gh", "release", "create", tag, "--repo", repo, "--verify-tag", "--draft",
-            "--title", "Flow Quota {} (build {})".format(manifest["version"], manifest["build"]),
+            "--title", "Flow Quota {}".format(manifest["version"]),
             "--notes-file", str(bundle / "RELEASE-NOTES.md"))
         release = release_for_tag(repo, tag)
     if release is None:

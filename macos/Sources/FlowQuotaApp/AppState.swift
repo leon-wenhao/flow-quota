@@ -40,7 +40,7 @@ final class AppState {
     var updateChecking: Bool { updateState == .checking }
     var currentVersionText: String {
         let version = AppVersion.current
-        return "\(version.marketingString)（build \(version.build)）"
+        return version.marketingString
     }
     var canConfigureNetwork: Bool { connected && snapshotIsCurrent && !busy && !quitRequested }
     var canEdit: Bool { canConfigureNetwork && (selectedTrafficCategory == .metered || categorySnapshot != nil) }

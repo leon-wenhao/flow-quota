@@ -169,6 +169,7 @@ class PublishSafetyTests(AssetFixture):
         self.tag.assert_called_once_with(REPO, TAG)
         self.assertIn("--draft", commands[0])
         self.assertIn("--verify-tag", commands[0])
+        self.assertEqual(commands[0][commands[0].index("--title") + 1], "Flow Quota 1.2.3")
         self.assertEqual(commands[1][6:], tuple(map(str, self.assets)))
         self.activate.assert_called_once_with(self.bundle, REPO, TAG)
 

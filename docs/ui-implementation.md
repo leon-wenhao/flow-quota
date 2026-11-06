@@ -531,3 +531,16 @@ SettingsUsageGuide；删除设置控件下重复的开关状态和说明段落�
 PanelView 移除应用添加的 18 点圆角裁切，将 material 背景和细描边改为 Rectangle，四角内容延伸至矩形边界。内部概览卡片及按钮保持原样。仍由原生 MenuBarExtra.window 承载；本次改动仅控制应用内容形状，不使用私有 API 改写系统窗口装饰。采用现有 SwiftUI background(_:in:) 与 Rectangle.strokeBorder，最低 macOS 14。官方依据：Apple SwiftUI View/background(_:in:fillStyle:)、MenuBarExtraStyle/window。
 
 交付：0.1.0 build 21，arm64 编译、签名和安装后暂停服务 XPC 检查通过（.artifacts/service-repair.eSJ4l9）。恢复安装前启动环境，采集保留原来的暂停状态；临时旧应用已清除。git diff --check 通过，未生成测试流量。已核对本机 SwiftUI SDK 的 MenuBarExtra 与 WindowMenuBarExtraStyle 公共声明；本次不承诺去除 macOS 系统宿主的圆角。未完成菜单栏弹窗四角的运行时截图确认。
+
+
+## 预警记录表格与版本展示（2026-11-06）
+
+0.1.1 将预警记录整理为固定表头的紧凑表格，空状态显示“今天暂无预警记录”，
+计量与来源细节按需展开；共享交互样式移除悬停描边，保留禁用状态与按压反馈。
+应用内当前版本、公开 Release 标题与发布说明标题只显示三段版本号，内部构建号
+继续用于更新比较、清单和唯一 tag，避免新包与已发布包混淆。
+
+发布脚本沿用 GitHub 官方 CLI 的 `gh release create --title` 设置显示名称，
+不改变 tag 和资产校验流程。官方依据：https://cli.github.com/manual/gh_release_create。
+完整 Swift 回归 341 项 Swift Testing 与 37 项 XCTest、52 项发布离线测试通过；
+发布标题及说明标题的格式断言已同步更新。证据位于 `.artifacts/release-0.1.1-*.log`。
