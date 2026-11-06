@@ -21,7 +21,18 @@
 - 本机 Git HTTPS 原生端点先发生 HTTP/2 framing 错误，HTTP/1.1 又连接超时。GitHub REST API 正常；公开资料与清单使用已测试的 API 发布流程，未修改全局代理、DNS 或源码仓库可见性。
 - 私有源码同步如需使用 Git Database API，必须固定私有目标，按本地准确 tree/commit 创建对象，服务端 SHA 全部一致后才能以 `force: false` 更新 main；任何不一致都停止，不能悄悄创建不同的源码版本。
 
-Release 的最终发布状态和线上清单将在上传核验后补记；当前这条记录不代表已完成线上发布。
+## 线上发布结果
+
+- 版本：`0.1.0 (build 19)`，tag `v0.1.0-build.19`，Release ID `436027497`。
+- 正式发布于 2026-11-06 10:23:42（Asia/Shanghai），`draft=false`，共六个附件；名称、上传状态、大小及 GitHub SHA-256 digest 全部与本地一致。
+- 发布页：<https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.0-build.19>。
+- Apple Silicon DMG：2,355,200 bytes，SHA-256 `c0fc2dbfb331d85add702bf46ea4002db3e452f2c32314c6201d2c82af7c89f1`。
+- Intel DMG：2,468,864 bytes，SHA-256 `ebfe89d4fccb8022cfaa00e2f56464e8972c35757456052ce3d32ec897e2059c`。
+- 公开 main 已在正式发布后激活 `update-manifest.json`；通过官方 Contents API 匿名读取，与本地 1,076 bytes 的清单逐字节一致。公开历史仅包含三份文档、图标和更新清单。
+- 打包对应私有源码提交 `070379b` 已同步，GitHub 与本地 commit/tree SHA 一致；未将其作为公开 tag 或附件内容。
+- 实际经历了草稿创建后列表短暂未返回的情况：首次发布按设计停止且未激活清单，确认唯一草稿后重复同一命令，从同一 bundle 恢复成功，未重建／覆写正式附件。
+
+客户端默认地址 `raw.githubusercontent.com/.../main/update-manifest.json` 的匿名直连请求在本机 25 秒超时；本轮**未通过当前网络下客户端 Raw 入口连通性验收**。Contents API 的匿名读取成功只证明公开文件存在且内容正确，不等于 Raw 域名或另一台设备的检查／下载成功。恢复对该域名的网络访问后，可只检查小清单进行复验；不得用热点下载 DMG 做实验。
 
 ## 验收边界
 
