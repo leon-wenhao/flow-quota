@@ -39,7 +39,45 @@ def sign_archive(path, tool):
         [tool, "--account", ACCOUNT, "-p", str(path)], text=True).strip())
 
 
-def make_xml(manifest, arch, signature):
+INSTALL_DESCRIPTION = (
+    "下载后自动替换并重启，保留规则、偏好和当天累计。更新期间不补算流量。"
+    "当前为 ad-hoc 签名，未完成 Apple 公证；系统可能要求额外确认。"
+)
+
+
+def description_from_notes(path):
+    """Build Sparkle's plain-text update description from the public release notes."""
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    try:
+        start = lines.index("## 本次更新") + 1
+        end = lines.index("## 系统与安装包", start)
+    except ValueError as error:
+        raise ValueError("Release notes must contain 本次更新 and 系统与安装包 sections") from error
+
+    updates = []
+    paragraph = []
+
+    def flush_paragraph():
+        if paragraph:
+            updates.append("• " + " ".join(paragraph))
+            paragraph.clear()
+
+    for raw in lines[start:end]:
+        line = raw.strip()
+        if not line:
+            flush_paragraph()
+        elif line.startswith("- "):
+            flush_paragraph()
+            updates.append("• " + line[2:].strip())
+        else:
+            paragraph.append(line)
+    flush_paragraph()
+    if not updates:
+        raise ValueError("Release notes 本次更新 section is empty")
+    return "本次更新：\n" + "\n".join(updates) + "\n\n" + INSTALL_DESCRIPTION
+
+
+def make_xml(manifest, arch, signature, description):
     package = manifest["packages"]["macos/" + arch]
     rss = ET.Element("rss", {"version": "2.0"})
     channel = ET.SubElement(rss, "channel")
@@ -49,9 +87,7 @@ def make_xml(manifest, arch, signature):
     ET.SubElement(item, "{" + NS + "}version").text = str(manifest["build"])
     ET.SubElement(item, "{" + NS + "}shortVersionString").text = manifest["version"]
     ET.SubElement(item, "{" + NS + "}minimumSystemVersion").text = manifest["minimumSystemVersion"]
-    ET.SubElement(item, "description").text = (
-        "下载后自动替换并重启，保留规则、偏好和当天累计。更新期间不补算流量。"
-        "当前为 ad-hoc 签名，未完成 Apple 公证；系统可能要求额外确认。")
+    ET.SubElement(item, "description").text = description
     ET.SubElement(item, "enclosure", {
         "url": package["url"], "length": str(package["size"]),
         "type": "application/octet-stream", "{" + NS + "}edSignature": signature,
@@ -65,11 +101,13 @@ def sign_feed(feed, tool):
 
 
 def prepare(output, manifest):
+    output = Path(output)
+    description = description_from_notes(output / "RELEASE-NOTES.md")
     tool = signer()
     for arch, name in zip(("arm64", "x86_64"), FEEDS):
         package = output / manifest["packages"]["macos/" + arch]["fileName"]
         feed = output / name
-        feed.write_bytes(make_xml(manifest, arch, sign_archive(package, tool)))
+        feed.write_bytes(make_xml(manifest, arch, sign_archive(package, tool), description))
         sign_feed(feed, tool)
 
 
@@ -89,6 +127,8 @@ def verify_signatures(requests):
 
 
 def validate(output, manifest):
+    output = Path(output)
+    description = description_from_notes(output / "RELEASE-NOTES.md")
     requests = []
     for arch, name in zip(("arm64", "x86_64"), FEEDS):
         path = output / name
@@ -104,7 +144,7 @@ def validate(output, manifest):
             signature = signature_value(root.find("channel/item/enclosure").get("{" + NS + "}edSignature"))
         except (ET.ParseError, AttributeError) as error:
             raise ValueError("Malformed appcast") from error
-        if data[:length] != make_xml(manifest, arch, signature):
+        if data[:length] != make_xml(manifest, arch, signature, description):
             raise ValueError("Appcast differs from the expected release/architecture")
         package = output / manifest["packages"]["macos/" + arch]["fileName"]
         requests.extend([{"file": str(path), "signature": signature_value(match[1].decode()), "length": length},

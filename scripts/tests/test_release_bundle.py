@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
+import xml.etree.ElementTree as ET
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "release_bundle.py"
@@ -115,6 +116,25 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertNotIn(obsolete, notes)
         self.assertNotIn("xattr", notes)
         self.assertNotIn("spctl", notes)
+
+    def test_appcast_description_uses_concrete_release_notes(self):
+        expected = (
+            "本次更新", "用量图表", "全部来源排行", "Clash／Mihomo",
+            "下载后自动替换并重启", "ad-hoc", "Apple 公证"
+        )
+        old_description = bundle.sparkle_feed.INSTALL_DESCRIPTION
+        descriptions = []
+        for name in bundle.sparkle_feed.FEEDS:
+            data = (self.output / name).read_bytes()
+            length = int(bundle.sparkle_feed.SIGNATURE.search(data)[2])
+            root = ET.fromstring(data[:length])
+            description = root.find("channel/item/description").text
+            descriptions.append(description)
+            for text in expected:
+                self.assertIn(text, description)
+            self.assertTrue(description.startswith("本次更新：\n• "))
+            self.assertNotEqual(description, old_description)
+        self.assertEqual(descriptions[0], descriptions[1])
 
     def test_feed_architecture_version_and_signature_are_required(self):
         path = self.output / "appcast-arm64.xml"
