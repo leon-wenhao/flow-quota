@@ -16,12 +16,13 @@ import Testing
     #expect(try JSONDecoder().decode(NetworkState.self, from: encoded) == .expensive)
 }
 
-@Test func ordinaryAndDisconnectedPathsDoNotAutomaticallyCount() throws {
+@Test func ordinaryPathsCountSeparatelyAndDisconnectedPathsDoNotCount() throws {
     var state = NetworkTrackingState()
     #expect(throws: (any Error).self) { try state.markCurrentPath(true) }
     state.update(isAvailable: true, isExpensive: false)
     #expect(state.snapshot.state == .ordinary)
-    #expect(!state.snapshot.state.countsTraffic)
+    #expect(state.snapshot.state.countsTraffic)
+    #expect(state.snapshot.state.trafficCategory == .ordinary)
     state.update(isAvailable: false, isExpensive: true)
     #expect(state.snapshot.state == .unknown)
     #expect(!state.snapshot.state.countsTraffic)
@@ -73,7 +74,7 @@ import Testing
     }
     network.update(isAvailable: true, isExpensive: false)
     #expect(try sample(100, sequence: 1, path: network.snapshot) == 0)
-    #expect(try sample(200, sequence: 2, path: network.snapshot) == 0)
+    #expect(try sample(200, sequence: 2, path: network.snapshot) == 100)
     network.update(isAvailable: true, isExpensive: true)
     #expect(try sample(900, sequence: 3, path: network.snapshot) == 0) // First metered baseline.
     #expect(try sample(920, sequence: 4, path: network.snapshot) == 20)

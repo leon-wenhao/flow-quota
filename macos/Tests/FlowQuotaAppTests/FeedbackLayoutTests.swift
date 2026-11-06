@@ -5,19 +5,20 @@ import Testing
 @testable import FlowQuotaApp
 
 /// Native, fixture-only scroll measurements. No XPC, sampling, or OS permission requests.
-@MainActor @Test func settingsScrollGeometryStaysFixedAcrossOperationFeedback() async throws {
+@MainActor @Test(arguments: [PreferencesNavigation.Page.general, .reminders])
+func settingsScrollGeometryStaysFixedAcrossOperationFeedback(page: PreferencesNavigation.Page) async throws {
     _ = NSApplication.shared
     let client = FakeAgentClient()
     client.state = AgentSnapshot(generatedAt: Date(), network: .expensive, readiness: .notInstalled,
         applications: [], message: "Fixture only", monitoring: .paused, trafficAlertPolicy: .initial)
     let state = AppState(client: client, scheduler: FakeReminderScheduler())
     await state.refresh()
-    let host = NSHostingView(rootView: PanelView(state: state, showSettings: true))
-    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 680),
+    let host = NSHostingView(rootView: PreferencesWindowView(state: state, navigation: settingsNavigation(page)))
+    let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 680),
                           styleMask: [.borderless], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
     window.contentView = host
-    host.frame = NSRect(x: 0, y: 0, width: 420, height: 680)
+    host.frame = NSRect(x: 0, y: 0, width: 860, height: 680)
     defer { window.close() }
     await settleFeedbackLayout(host)
     let scroll = try #require(findScrollView(host))
@@ -108,4 +109,10 @@ private struct FeedbackScrollGeometry: Equatable {
     private var continuation: CheckedContinuation<Void, Never>?
     func wait() async { await withCheckedContinuation { continuation = $0 } }
     func resume() { continuation?.resume(); continuation = nil }
+}
+
+@MainActor private func settingsNavigation(_ page: PreferencesNavigation.Page) -> PreferencesNavigation {
+    let navigation = PreferencesNavigation()
+    navigation.select(page)
+    return navigation
 }

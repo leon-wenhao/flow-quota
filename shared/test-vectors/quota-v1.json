@@ -362,16 +362,16 @@
       "expectedError": null
     },
     {
-      "id": "ordinary-preserves-usage",
+      "id": "ordinary-category-evaluates-own-rule",
       "uploadedBytes": "50",
       "downloadedBytes": "50",
       "limitBytes": "100",
       "warningPercent": 80,
       "network": "ordinary",
       "hasRule": true,
-      "expectedStatus": "ordinaryNetwork",
-      "expectedRemainingBytes": null,
-      "expectedThresholdBytes": null,
+      "expectedStatus": "blocked",
+      "expectedRemainingBytes": "0",
+      "expectedThresholdBytes": "80",
       "expectedError": null
     },
     {
@@ -634,7 +634,7 @@
       "expectedNotification": null
     },
     {
-      "id": "ordinary-no-notification",
+      "id": "ordinary-enabled-rule-notifies",
       "appKey": "signed.app",
       "day": "2026-11-04",
       "ruleVersion": 1,
@@ -644,7 +644,7 @@
       "downloadedBytes": "120",
       "network": "ordinary",
       "delivered": [],
-      "expectedNotification": null
+      "expectedNotification": "blocked"
     },
     {
       "id": "unknown-no-notification",

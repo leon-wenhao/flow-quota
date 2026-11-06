@@ -17,28 +17,29 @@ struct SQLiteIntegrityTests {
         #expect(throws: StoreError.self) { try db.execute("INVALID SQL") }
         #expect(try db.scalar("PRAGMA foreign_keys") == 1)
         #expect(try db.scalar("PRAGMA synchronous") == 2)
+        #expect(try db.scalar("PRAGMA secure_delete") == 1)
         #expect(try db.scalar("PRAGMA busy_timeout") == 1_000)
         #expect(try db.scalar("PRAGMA wal_autocheckpoint") == 1_000)
         #expect(try db.query("PRAGMA journal_mode", row: { $0.text(0) }) == ["wal"])
         for sql in [
             "INSERT INTO applications VALUES (NULL, 'invalid')",
             "INSERT INTO applications VALUES ('', 'invalid')",
-            "INSERT INTO quota_rules VALUES ('orphan', 100, 80, 1)",
+            "INSERT INTO quota_rules (app_key, limit_bytes, warning_percent, version) VALUES ('orphan', 100, 80, 1)",
             "UPDATE quota_rules SET limit_bytes = 0",
             "UPDATE quota_rules SET limit_bytes = 1.5",
             "UPDATE quota_rules SET warning_percent = 100",
             "UPDATE quota_rules SET version = -1",
-            "INSERT INTO daily_usage VALUES ('orphan', '2026-11-04', 1, 0)",
-            "INSERT INTO daily_usage VALUES ('signed:app', '2026-02-29', 1, 0)",
-            "INSERT INTO daily_usage VALUES ('signed:app', '1900-02-29', 1, 0)",
-            "INSERT INTO daily_usage VALUES ('signed:app', '2026-04-31', 1, 0)",
-            "INSERT INTO daily_usage VALUES ('signed:app', '0000-01-01', 1, 0)",
-            "INSERT INTO daily_usage VALUES ('signed:app', '2026-11-04', -1, 0)",
-            "INSERT INTO daily_usage VALUES ('signed:app', '2026-11-04', 1.5, 0)",
-            "INSERT INTO daily_usage VALUES ('signed:app', '2026-11-04', 9223372036854775807, 1)",
-            "INSERT INTO notification_receipts VALUES ('orphan', '2026-11-04', 'warning', 1)",
-            "INSERT INTO notification_receipts VALUES ('signed:app', '2026-11-04', 'other', 1)",
-            "INSERT INTO notification_receipts VALUES ('signed:app', '2026-11-04', 'warning', 0)",
+            "INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('orphan', '2026-11-04', 1, 0)",
+            "INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '2026-02-29', 1, 0)",
+            "INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '1900-02-29', 1, 0)",
+            "INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '2026-04-31', 1, 0)",
+            "INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '0000-01-01', 1, 0)",
+            "INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '2026-11-04', -1, 0)",
+            "INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '2026-11-04', 1.5, 0)",
+            "INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '2026-11-04', 9223372036854775807, 1)",
+            "INSERT INTO notification_receipts (app_key, day, kind, rule_version) VALUES ('orphan', '2026-11-04', 'warning', 1)",
+            "INSERT INTO notification_receipts (app_key, day, kind, rule_version) VALUES ('signed:app', '2026-11-04', 'other', 1)",
+            "INSERT INTO notification_receipts (app_key, day, kind, rule_version) VALUES ('signed:app', '2026-11-04', 'warning', 0)",
             "INSERT INTO budget_leases VALUES ('bad', 'orphan', '2026-11-04', 1, 10, 1000, NULL, NULL)",
             "INSERT INTO budget_leases VALUES ('bad', 'signed:app', '2026-11-04', 1, 0, 1000, NULL, NULL)",
             "INSERT INTO budget_leases VALUES ('bad', 'signed:app', '2026-11-04', 1, 10, 1000, 1, NULL)",
@@ -47,9 +48,9 @@ struct SQLiteIntegrityTests {
         ] {
             #expect(throws: StoreError.self) { try db.execute(sql) }
         }
-        try db.execute("INSERT INTO daily_usage VALUES ('signed:app', '2000-02-29', 1, 2)")
+        try db.execute("INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '2000-02-29', 1, 2)")
         #expect(throws: StoreError.self) {
-            try db.execute("INSERT INTO daily_usage VALUES ('signed:app', '2000-02-29', 1, 2)")
+            try db.execute("INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES ('signed:app', '2000-02-29', 1, 2)")
         }
         #expect(try db.scalar("SELECT COUNT(*) FROM daily_usage") == 1)
         #expect(try db.query("PRAGMA integrity_check", row: { $0.text(0) }) == ["ok"])
@@ -67,8 +68,8 @@ struct SQLiteIntegrityTests {
             for index in 0..<200 {
                 let key = "app-\(index)"
                 try db.execute("INSERT INTO applications VALUES (?, ?)", [.text(key), .text(key)])
-                try db.execute("INSERT INTO quota_rules VALUES (?, 100000, 80, 1)", [.text(key)])
-                try db.execute("INSERT INTO daily_usage VALUES (?, ?, 1, 2)", [.text(key), .text(fixture.day)])
+                try db.execute("INSERT INTO quota_rules (app_key, limit_bytes, warning_percent, version) VALUES (?, 100000, 80, 1)", [.text(key)])
+                try db.execute("INSERT INTO daily_usage (app_key, day, uploaded_bytes, downloaded_bytes) VALUES (?, ?, 1, 2)", [.text(key), .text(fixture.day)])
                 try db.execute("""
                     INSERT INTO budget_leases(lease_id, app_key, day, rule_version, reserved_bytes, expires_at_ms)
                     VALUES (?, ?, ?, 1, 5, 1793793660000)

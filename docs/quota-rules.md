@@ -2,36 +2,41 @@
 
 > Reminder-only iteration, 2026-11-05: `.blocked` remains a legacy domain/persistence threshold key for compatibility. It never means a connection was blocked by this iteration. Monitoring readiness and notification delivery are independent, see tasks/005-reminder-monitor.md.
 
-## Current network scope (2026-11-05)
+## Current network scope (2026-11-05, schema v5)
 
-`NetworkState.expensive` means a satisfied `NWPath` with `isExpensive`; it automatically
-counts observed increments. This cost signal does not confirm a phone hotspot, device or
-carrier. `.hotspot` remains an explicit manual mark. `NetworkState.countsTraffic` is true
-for both states, false for `.ordinary` (no automatic counting) and `.unknown` (unavailable
-network state). UI manual controls remain available for ordinary/unknown when the service
-permits changes; expensive hides the redundant mark action and hotspot retains cancellation.
+Available paths are counted in two independent TrafficCategory ledgers. A satisfied
+NWPath with isExpensive and a manually marked hotspot use the metered category;
+ordinary available Wi-Fi/wired paths use ordinary. Unknown paths have no category
+and add no bytes. The cost signal remains distinct from confirmed hotspot identity.
+Manual marking corrects classification, rather than enabling counting for ordinary
+networks. Path updates expire manual marks as before.
 
-Both counted states share one app/current-local-day usage total and reminder budget. Path
-or mark changes rebuild the sampling baseline without clearing persisted usage, granting a
-fresh allowance or backfilling unknown intervals. Application budgets retain their existing
-structure; schema v3 separately stores independent daily interface totals. A rule
-ACK confirms persistence; reaching a threshold only requests a reminder, never blocking.
-Already observed daily usage remains visible after leaving a counted path when sampling
-and the snapshot remain valid.
+Each category has separate application/day usage, interface/day usage, per-app
+rules and rule versions, global alert policy versions, notification receipts and
+rolling-alert cooldowns. New metered policies enable 1 GB/day and 200 MB/3-minute
+alerts; new ordinary policies disable all three alert thresholds, with no per-app
+rules. Saved user settings survive upgrade/reopen. Existing v4 rows migrate to
+metered verbatim; ordinary traffic before feature activation cannot be reconstructed.
 
-Apple's API defines the cost signal: https://developer.apple.com/documentation/network/nwpath/isexpensive.
-Automatic inclusion in this budget is project policy, not hotspot identity detection.
-The headline and menu total use only the independently persisted interface meter; application
-attribution may overlap and is never added together to fill a missing interface total.
-Application reminders continue to use application attribution, not the interface ledger.
-Both ledgers include expensive/manual-hotspot observed intervals for the current local day.
-A missing interface row is unknown; an explicit baseline can establish a valid zero.
+QuotaEvaluator evaluates the rule and usage from the supplied category for all
+available networks. An absent rule is unlimited/no app reminder. Only unknown
+scope is inapplicable. The legacy ordinaryNetwork enum value is retained for wire
+compatibility but is no longer emitted. QuotaNotificationKey includes category;
+old keys without it decode as metered. Existing metered OS notification identifiers
+are retained, ordinary uses a separate namespace. Durable lease APIs remain scoped
+to metered only; this iteration still never blocks a connection.
 
-Current validation: 164 tests passed (Core 29, Store 39, Platform 48, App 37, Agent 11).
-Both architecture builds and strict signatures pass. This iteration uses simulated counters,
-injected system calls and temporary databases only; no hotspot traffic experiments or
-installed-app interface checks were performed. Prior live results in `implementation-status.md`
-are historical application-sampler evidence, not proof of the new interface meter or billing accuracy.
+Switching path/category resets baselines and rolling windows; counters remain in
+their original ledger, with no allowance replenishment or unknown-interval backfill.
+Editing an inactive category's policy does not erase the active category's window.
+Earned daily reminders and queued events can be delivered after leaving a category,
+subject to that category's current configuration and normal notification permissions.
+Interface totals remain independent of overlapping application attribution.
+
+Apple cost-signal reference: https://developer.apple.com/documentation/network/nwpath/isexpensive.
+This project chooses how cost signals map to accounting categories. Validation uses
+simulated counts, injected system calls, temporary databases and builds/signatures;
+see implementation-status.md for the current results and unmeasured limitations.
 
 ## Domain implementation background
 
@@ -70,9 +75,9 @@ Precision below one byte is rejected unless excess fractional digits are all zer
 Zero is valid for conversion, but cannot become a finite QuotaRule limit. All persisted or
 interchanged byte counts use nonnegative Int64 values (maximum 9,223,372,036,854,775,807).
 
-`ordinaryNetwork` and `unknownNetwork` never automatically consume the shared budget. Unknown is an explicit
+`ordinaryNetwork` is a legacy enum value; available ordinary paths now evaluate their own category. `unknownNetwork` does not count. Unknown is an explicit
 scope uncertainty, not a claim that unrestricted traffic is safe or protection is ready.
-For expensive or manually marked hotspot scope, missing usage yields `usageUnavailable`, including for an unlimited app;
+For any available accounting category, missing usage yields `usageUnavailable`, including for an unlimited app;
 known usage without a finite rule yields `unlimited`. `countsTraffic` expresses scope only,
 not proof of installed metering. The integration must handle readiness/errors independently.
 

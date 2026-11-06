@@ -19,10 +19,12 @@ final class SQLiteConnection {
             try execute("PRAGMA busy_timeout = 1000")
             try execute("PRAGMA foreign_keys = ON")
             try execute("PRAGMA synchronous = FULL")
+            try execute("PRAGMA secure_delete = ON")
             try execute("PRAGMA wal_autocheckpoint = 1000")
             let mode = try query("PRAGMA journal_mode = WAL") { $0.text(0) }
             guard mode == ["wal"], try scalar("PRAGMA foreign_keys") == 1,
                   try scalar("PRAGMA synchronous") == 2,
+                  try scalar("PRAGMA secure_delete") == 1,
                   try scalar("PRAGMA busy_timeout") == 1_000,
                   try scalar("PRAGMA wal_autocheckpoint") == 1_000 else {
                 throw StoreError.configuration("SQLite durability/FK configuration was not accepted")

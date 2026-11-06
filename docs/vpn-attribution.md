@@ -1,5 +1,7 @@
 # Clash／VPN 代理归因与身份权限
 
+更新：以下保留 nettop 身份修复的历史证据。最新列表已隐藏已确认 Mihomo 内核，改用站点／原始应用（Clash）来源行，日账本仍保留。来源细分及计量限制见 [mihomo-api.md](mihomo-api.md)。
+
 日期：2026-11-05，Asia/Shanghai。适用：当前 macOS 提醒版，最低 macOS 14；本机 Xcode 27.2／Swift 6.4.2／SDK 27.2。不扩大到自动阻断。
 
 ## 本机诊断

@@ -8,6 +8,9 @@ public struct SystemProcessClassification: Equatable, Sendable {
         case unconfirmed
     }
 
+    /// Shared list/chart visibility; an exact known proxy identity is diagnostic only.
+    public var visibleInApplicationUsage: Bool { category != .sharedProxy }
+
     /// The exact input identity, including its original key and name.
     public let identity: AppIdentity
     public let displayName: String

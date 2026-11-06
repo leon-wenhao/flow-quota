@@ -22,15 +22,15 @@ struct InterfaceIntegrityTests {
             "'2026-11-04', 9223372036854775808, 0"
         ] {
             #expect(throws: StoreError.self) {
-                try db.execute("INSERT INTO daily_interface_usage VALUES (\(values))")
+                try db.execute("INSERT INTO daily_interface_usage (day, uploaded_bytes, downloaded_bytes) VALUES (\(values))")
             }
         }
         #expect(try db.scalar("SELECT COUNT(*) FROM daily_interface_usage") == 0)
-        try db.execute("INSERT INTO daily_interface_usage VALUES ('2000-02-29', 0, 0)")
-        try db.execute("INSERT INTO daily_interface_usage VALUES ('0001-01-01', 9223372036854775807, 0)")
-        try db.execute("INSERT INTO daily_interface_usage VALUES ('9999-12-31', 0, 9223372036854775807)")
+        try db.execute("INSERT INTO daily_interface_usage (day, uploaded_bytes, downloaded_bytes) VALUES ('2000-02-29', 0, 0)")
+        try db.execute("INSERT INTO daily_interface_usage (day, uploaded_bytes, downloaded_bytes) VALUES ('0001-01-01', 9223372036854775807, 0)")
+        try db.execute("INSERT INTO daily_interface_usage (day, uploaded_bytes, downloaded_bytes) VALUES ('9999-12-31', 0, 9223372036854775807)")
         #expect(throws: StoreError.self) {
-            try db.execute("INSERT INTO daily_interface_usage VALUES ('2000-02-29', 1, 2)")
+            try db.execute("INSERT INTO daily_interface_usage (day, uploaded_bytes, downloaded_bytes) VALUES ('2000-02-29', 1, 2)")
         }
         #expect(throws: StoreError.self) {
             try db.execute("UPDATE daily_interface_usage SET uploaded_bytes = uploaded_bytes + 1 WHERE day = '0001-01-01'")
@@ -87,7 +87,7 @@ struct InterfaceIntegrityTests {
         let db = try SQLiteConnection(path: fixture.path)
         try db.transaction {
             for year in 2000..<2200 {
-                try db.execute("INSERT INTO daily_interface_usage VALUES (?, 1, 2)", [.text("\(year)-01-01")])
+                try db.execute("INSERT INTO daily_interface_usage (day, uploaded_bytes, downloaded_bytes) VALUES (?, 1, 2)", [.text("\(year)-01-01")])
             }
         }
         let plan = try db.query("""

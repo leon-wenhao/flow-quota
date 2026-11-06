@@ -1,10 +1,13 @@
 import Foundation
+import FlowQuotaCore
 
 public struct InterfaceTrafficScope: Equatable, Sendable {
+    public let category: TrafficCategory
     public let day: String
     public let pathGeneration: UInt64
 
-    public init(day: String, pathGeneration: UInt64) {
+    public init(day: String, pathGeneration: UInt64, category: TrafficCategory = .metered) {
+        self.category = category
         self.day = day
         self.pathGeneration = pathGeneration
     }
@@ -31,7 +34,7 @@ public struct InterfaceTrafficDelta: Equatable, Sendable {
 /// Ephemeral, caller-owned state. Serialize calls on the sampling task/actor.
 /// Uptime and maximum interval use continuous monotonic nanoseconds from SamplingClock.
 /// Scope changes, missing samples and discontinuities never backfill unknown use.
-/// The caller gates metered networks and resets on read failure, pause or restart.
+/// The caller selects the accounting category and resets on read failure, pause or restart.
 public struct InterfaceTrafficAccumulator: Sendable {
     private struct Baseline: Sendable {
         let snapshot: InterfaceCounterSnapshot

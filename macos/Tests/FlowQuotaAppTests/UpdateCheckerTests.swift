@@ -12,6 +12,11 @@ private struct StubUpdateLoader: UpdateDataLoading {
 }
 
 struct UpdateCheckerTests {
+    @Test func defaultUpdateEndpointUsesPublicDistributionRepository() {
+        #expect(UpdateChecker.defaultManifestURL.absoluteString ==
+            "https://raw.githubusercontent.com/leon-wenhao/flow-quota-releases/main/update-manifest.json")
+    }
+
     @Test func comparesMarketingVersionThenBuild() throws {
         let current = try AppVersion(version: "1.2.0", build: 4)
         let sameMarketingNewBuild = try AppVersion(version: "1.2.0", build: 5)
@@ -59,6 +64,33 @@ struct UpdateCheckerTests {
         let failedChecker = UpdateChecker(endpoint: url, loader: StubUpdateLoader(data: Data(), response: failure))
         await #expect(throws: UpdateCheckError.httpStatus(503)) {
             try await failedChecker.check(current: try AppVersion(version: "0.1.0", build: 1))
+        }
+    }
+
+    @Test func selectsCurrentArchitecturePackageAndValidatesMetadata() throws {
+        let package = """
+        {"format":"dmg","fileName":"FlowQuota-0.2.0-ARCH.dmg","url":"https://github.com/example/flow-quota/releases/download/v0.2.0/FlowQuota-0.2.0-ARCH.dmg","size":4,"sha256":"0000000000000000000000000000000000000000000000000000000000000000"}
+        """.replacingOccurrences(of: "ARCH", with: UpdateArchitecture.current)
+        let data = Data("""
+        {"schemaVersion":2,"product":"flow-quota","channel":"stable","version":"0.2.0","build":2,"minimumSystemVersion":"14.0","releaseNotesURL":"https://github.com/example/flow-quota/releases/tag/v0.2.0","downloadURL":"https://github.com/example/flow-quota/releases/tag/v0.2.0","packages":{"macos/\(UpdateArchitecture.current)":\(package)}}
+        """.utf8)
+
+        let manifest = try JSONDecoder().decode(UpdateManifest.self, from: data)
+        let release = try manifest.release()
+
+        #expect(release.package?.fileName.contains(UpdateArchitecture.current) == true)
+        #expect(release.package?.size == 4)
+        #expect(release.downloadURL.absoluteString.contains("releases/download/v0.2.0"))
+    }
+
+    @Test func rejectsPackageWithoutCurrentArchitecture() throws {
+        let data = Data("""
+        {"schemaVersion":2,"product":"flow-quota","channel":"stable","version":"0.2.0","build":2,"downloadURL":"https://github.com/example/flow-quota/releases/tag/v0.2.0","packages":{"macos/other":{"format":"dmg","fileName":"FlowQuota-0.2.0-other.dmg","url":"https://github.com/example/flow-quota/releases/download/v0.2.0/FlowQuota-0.2.0-other.dmg","size":4,"sha256":"0000000000000000000000000000000000000000000000000000000000000000"}}}
+        """.utf8)
+        let manifest = try JSONDecoder().decode(UpdateManifest.self, from: data)
+
+        #expect(throws: UpdateCheckError.packageUnavailable(UpdateArchitecture.current)) {
+            try manifest.release()
         }
     }
 }

@@ -11,7 +11,7 @@ public enum QuotaStatus: String, Codable, Sendable {
 
 public struct QuotaEvaluation: Equatable, Sendable {
     public let status: QuotaStatus
-    /// True for automatic high-cost paths or manual hotspot marks; ordinary/unknown paths do not count.
+    /// Available paths count in their own category; unknown paths do not count.
     public let countsTraffic: Bool
     /// Nil for unlimited, unavailable or inapplicable evaluation. Never negative.
     public let remainingBytes: Int64?
@@ -19,7 +19,7 @@ public struct QuotaEvaluation: Equatable, Sendable {
 }
 
 public enum QuotaEvaluator {
-    /// Upload + download are metered-scope counters for the selected app/day, never all-network
+    /// Upload + download are category-scoped counters for the selected app/day, never all-network
     /// traffic. Nil means unavailable, not zero. Negative counters throw; total overflow saturates.
     public static func evaluate(rule: QuotaRule?, usage: DailyUsage?,
                                 network: NetworkState) throws -> QuotaEvaluation {
@@ -27,9 +27,8 @@ public enum QuotaEvaluator {
             throw QuotaEvaluationError.negativeUsage
         }
         switch network {
-        case .ordinary: return result(.ordinaryNetwork, counts: false)
         case .unknown: return result(.unknownNetwork, counts: false)
-        case .hotspot, .expensive: break
+        case .ordinary, .hotspot, .expensive: break
         }
         guard let usage else { return result(.usageUnavailable, counts: true) }
         guard let rule, let limit = rule.limitBytes else { return result(.unlimited, counts: true) }
@@ -54,10 +53,19 @@ public enum QuotaNotificationKind: String, Codable, Sendable { case warning, blo
 public struct QuotaNotificationKey: Codable, Hashable, Sendable {
     public let identity: QuotaIdentity
     public let kind: QuotaNotificationKind
+    public let category: TrafficCategory
 
-    public init(identity: QuotaIdentity, kind: QuotaNotificationKind) {
+    public init(identity: QuotaIdentity, kind: QuotaNotificationKind, category: TrafficCategory = .metered) {
         self.identity = identity
         self.kind = kind
+        self.category = category
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        identity = try values.decode(QuotaIdentity.self, forKey: .identity)
+        kind = try values.decode(QuotaNotificationKind.self, forKey: .kind)
+        category = try values.decodeIfPresent(TrafficCategory.self, forKey: .category) ?? .metered
     }
 }
 
@@ -74,18 +82,18 @@ public enum QuotaTransitions {
     /// may notify again. Does not send notifications or mutate the supplied keys.
     public static func evaluate(identity: QuotaIdentity, rule: QuotaRule, usage: DailyUsage?,
                                 network: NetworkState,
-                                delivered: Set<QuotaNotificationKey> = []) throws -> QuotaTransition {
+                                delivered: Set<QuotaNotificationKey> = [], category: TrafficCategory = .metered) throws -> QuotaTransition {
         guard identity.ruleVersion == rule.version else { throw QuotaEvaluationError.ruleVersionMismatch }
         if let usage, usage.appKey != identity.appKey || usage.day != identity.day {
             throw QuotaEvaluationError.identityMismatch
         }
         let evaluation = try QuotaEvaluator.evaluate(rule: rule, usage: usage, network: network)
-        let block = QuotaNotificationKey(identity: identity, kind: .blocked)
+        let block = QuotaNotificationKey(identity: identity, kind: .blocked, category: category)
         var notification: QuotaNotificationKey?
         if evaluation.status == .blocked, !delivered.contains(block) {
             notification = block
         } else if evaluation.status == .warning, !delivered.contains(block) {
-            let warning = QuotaNotificationKey(identity: identity, kind: .warning)
+            let warning = QuotaNotificationKey(identity: identity, kind: .warning, category: category)
             if !delivered.contains(warning) { notification = warning }
         }
         return QuotaTransition(evaluation: evaluation, notification: notification)

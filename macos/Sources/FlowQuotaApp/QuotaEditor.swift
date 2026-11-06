@@ -2,6 +2,7 @@ import FlowQuotaCore
 import SwiftUI
 
 struct QuotaEditor: View {
+    let category: TrafficCategory
     let application: ApplicationSnapshot
     let state: AppState
     let done: @MainActor () -> Void
@@ -11,6 +12,7 @@ struct QuotaEditor: View {
     @State private var warning: Int
 
     init(application: ApplicationSnapshot, state: AppState, done: @escaping @MainActor () -> Void) {
+        self.category = state.selectedTrafficCategory
         self.application = application
         self.state = state
         self.done = done
@@ -43,6 +45,7 @@ struct QuotaEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Text("\(category.title) · 应用每日提醒").font(.caption).foregroundStyle(.secondary)
             usageSummary
             reminderSettings
             sourceDetails
@@ -66,9 +69,9 @@ struct QuotaEditor: View {
                     Text("上传＋下载")
                 }
                 .font(.caption).foregroundStyle(.secondary)
-                Text(UsageFormatter.bytes(state.knownUsage(application)))
+                Text(UsageFormatter.bytes(state.knownUsage(application, category: category)))
                     .font(.system(size: 30, weight: .semibold, design: .rounded)).monospacedDigit()
-                    .accessibilityLabel("今日应用归因用量：\(UsageFormatter.bytes(state.knownUsage(application)))")
+                    .accessibilityLabel("今日应用归因用量：\(UsageFormatter.bytes(state.knownUsage(application, category: category)))")
                 if sharedSource {
                     Label("共享服务 · 原始请求方未确认", systemImage: "info.circle")
                         .font(.caption).foregroundStyle(.secondary)
@@ -76,52 +79,45 @@ struct QuotaEditor: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+        .flowQuotaCard(padding: 14)
     }
 
     private var reminderSettings: some View {
         SettingsSection(title: "每日提醒") {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle(isOn: $limited) {
+                HStack {
                     Text("启用每日阈值").frame(maxWidth: .infinity, alignment: .leading)
+                    Toggle("启用每日阈值", isOn: $limited)
+                        .labelsHidden().toggleStyle(FlowQuotaToggleStyle()).fixedSize()
                 }
-                .toggleStyle(.switch).controlSize(.small)
                 if limited {
                     HStack(spacing: 8) {
                         TextField("输入阈值", text: $amount)
-                            .textFieldStyle(.roundedBorder)
+                            .textFieldStyle(.plain)
+                            .flowQuotaControl()
                             .accessibilityLabel("每日提醒阈值数值")
-                        Picker("单位", selection: $unit) {
-                            ForEach(QuotaUnit.allCases) { Text($0.rawValue).tag($0) }
-                        }
-                        .labelsHidden().frame(width: 80).accessibilityLabel("阈值单位")
+                        FlowQuotaSegmentedControl(options: QuotaUnit.allCases, selection: $unit,
+                            title: { $0.rawValue }, accessibilityLabel: "阈值单位")
+                            .frame(width: 112)
                     }
-                    Stepper(value: $warning, in: 1...99) {
-                        Text("提前提醒：\(warning)%").frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .font(.subheadline).accessibilityValue("\(warning)%")
+                    FlowQuotaStepper(title: "提前提醒", suffix: "%", value: $warning, range: 1...99)
                     if QuotaInput.bytes(amount, unit: unit) == nil {
                         Label("请输入有效的正数阈值。", systemImage: "exclamationmark.circle")
                             .font(.caption).foregroundStyle(.orange)
                             .help("须精确到整数 byte，且不能超出 Int64 范围。")
                     }
-                } else {
-                    Text("未设阈值，仍统计用量。")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             .disabled(!state.canEdit)
-            Divider()
             HStack(spacing: 8) {
                 // Busy/ACK states replace this fixed slot instead of inserting a lock row.
-                Text(state.canEdit ? "仅提醒，不阻断" : state.unavailableReason)
+                Text(state.canEdit ? "" : state.unavailableReason)
                     .font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     .frame(maxWidth: .infinity, minHeight: 32, maxHeight: 32, alignment: .leading)
                     .help(state.canEdit ? "保存后仅更新此来源的每日提醒配置。" : state.unavailableReason)
                 Button("保存设置", systemImage: "checkmark") {
                     guard let rule = nextRule else { return }
-                    state.save(appKey: application.identity.key, rule: rule, acknowledged: done)
+                    state.save(appKey: application.identity.key, rule: rule, category: category, acknowledged: done)
                 }
                 .settingsAction(prominent: true).fixedSize()
                 .disabled(nextRule == nil || !state.canEdit)
@@ -140,16 +136,6 @@ struct QuotaEditor: View {
                     Text(source.detail)
                     Text(application.identity.name)
                     Text(application.identity.key).font(.caption2)
-                }
-                .font(.caption).foregroundStyle(.secondary).textSelection(.enabled).padding(.top, 4)
-            }
-            Divider()
-            DisclosureGroup("计量说明") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("高成本网络与手动热点共用此来源的每日提醒预算。按该来源归因用量提醒，可能与代理重叠，不与接口总量相加。")
-                    Text("仅含服务运行期间观测的上传＋下载，不代表完整自然日用量或运营商账单；未知期间不回填。")
-                    Text("1 MB = 1,000,000 bytes；1 GB = 1,000,000,000 bytes。阈值须为正数、精确到整数 byte，且不能超出 Int64 范围。")
-                    Text("达到阈值只发送提醒；保存成功仅表示配置已持久化。")
                 }
                 .font(.caption).foregroundStyle(.secondary).textSelection(.enabled).padding(.top, 4)
             }

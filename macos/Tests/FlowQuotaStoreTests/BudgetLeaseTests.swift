@@ -81,7 +81,7 @@ struct BudgetLeaseTests {
         try await again.close()
     }
 
-    @Test func expiredAndOldDayBudgetsNeverReissue() async throws {
+    @Test func expiredBudgetsRemainConservativeWithinDayAndOldDaysArePurged() async throws {
         let fixture = try StoreFixture()
         defer { fixture.cleanup() }
         let store = try fixture.open()
@@ -105,20 +105,17 @@ struct BudgetLeaseTests {
         }
         fixture.clock.advance(86_400)
         try await store.prunePreviousDays()
-        #expect(try await store.budgetBalance(appKey: "signed:app", day: oldDay).chargedBytes == 100)
+        #expect(try await store.budgetBalance(appKey: "signed:app", day: oldDay).chargedBytes == 0)
         await expectStoreError(.inactiveDay) {
             try await store.reserveBudget(id: "old", appKey: "signed:app", day: oldDay,
                                           bytes: 1, ruleVersion: 1, expiresAt: fixture.expiry)
         }
-        await expectStoreError(.leaseConflict) {
-            try await store.reserveBudget(id: "unknown", appKey: "signed:app", day: fixture.day,
-                                          bytes: 90, ruleVersion: 1, expiresAt: fixture.expiry)
-        }
+        // Previous-day IDs are deliberately removed by reminder-mode retention.
         _ = try await store.reserveBudget(id: "new-day", appKey: "signed:app", day: fixture.day,
                                           bytes: 100, ruleVersion: 1, expiresAt: fixture.expiry)
         try await store.close()
         let reopened = try fixture.open()
-        #expect(try await reopened.budgetBalance(appKey: "signed:app", day: oldDay).outstandingBytes == 90)
+        #expect(try await reopened.budgetBalance(appKey: "signed:app", day: oldDay).outstandingBytes == 0)
         try await reopened.close()
     }
 

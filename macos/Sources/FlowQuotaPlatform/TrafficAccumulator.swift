@@ -13,6 +13,8 @@ public struct TrafficAccumulation: Sendable {
     public let resetProcesses: Int
     /// Canonical app identities with at least one counter rollback in this frame.
     public let resetSourceKeys: Set<String>
+    /// Sources with at least one measured process delta, distinct from baseline zeros.
+    public let observedSourceKeys: Set<String>
 }
 
 /// Ephemeral baselines deliberately cannot reconstruct traffic before observation.
@@ -44,6 +46,7 @@ public struct TrafficAccumulator: Sendable {
         var increments: [String: ObservedIncrement] = [:]
         var resets = 0
         var resetSources = Set<String>()
+        var observedSources = Set<String>()
         for row in counters {
             guard row.uploadedBytes >= 0, row.downloadedBytes >= 0,
                   current.updateValue(row, forKey: row.processKey) == nil else {
@@ -53,6 +56,7 @@ public struct TrafficAccumulator: Sendable {
             var download: Int64 = 0
             if countTraffic, validBaseline, let old = previous[row.processKey] {
                 if old.uploadedBytes <= row.uploadedBytes && old.downloadedBytes <= row.downloadedBytes {
+                    observedSources.insert(row.identity.key)
                     upload = row.uploadedBytes - old.uploadedBytes
                     download = row.downloadedBytes - old.downloadedBytes
                 } else {
@@ -63,6 +67,7 @@ public struct TrafficAccumulator: Sendable {
                       let lastCapturedAt, birth > lastCapturedAt, birth <= capturedAt {
                 // A process proven born inside this continuous observed interval has
                 // no pre-observation bytes. Count its first burst instead of losing it.
+                observedSources.insert(row.identity.key)
                 upload = row.uploadedBytes
                 download = row.downloadedBytes
             }
@@ -82,6 +87,6 @@ public struct TrafficAccumulator: Sendable {
         lastUptime = uptime
         lastCapturedAt = capturedAt
         return TrafficAccumulation(increments: increments.values.sorted { $0.identity.key < $1.identity.key },
-                                   rebaselined: !validBaseline, resetProcesses: resets, resetSourceKeys: resetSources)
+                                   rebaselined: !validBaseline, resetProcesses: resets, resetSourceKeys: resetSources, observedSourceKeys: observedSources)
     }
 }

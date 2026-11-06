@@ -2,135 +2,78 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION_FILE="$ROOT/macos/Configuration/version.env"
-INFO_PLIST="$ROOT/macos/Configuration/Info.plist"
-MANIFEST="$ROOT/update-manifest.json"
-
-read_config_value() {
-    local key="$1"
-    awk -F= -v key="$key" '$1 == key { print substr($0, index($0, "=") + 1); exit }' "$VERSION_FILE"
-}
-VERSION="$(read_config_value FLOW_QUOTA_VERSION)"
-BUILD_NUMBER="$(read_config_value FLOW_QUOTA_BUILD)"
+REPO="leon-wenhao/flow-quota-releases"
 OUTPUT_DIR=""
+PUBLISH=false
+ACTIVATE=false
+VERSION="$(awk -F= '$1 == "FLOW_QUOTA_VERSION" { print $2 }' "$VERSION_FILE")"
+BUILD="$(awk -F= '$1 == "FLOW_QUOTA_BUILD" { print $2 }' "$VERSION_FILE")"
 
 usage() {
     cat <<'USAGE'
 Usage: scripts/release-macos.sh [options]
 
-Builds arm64 and x86_64 development release DMGs and writes a local release bundle.
-The script does not create tags, upload files, sign with Developer ID, or notarize.
+Build two macOS DMGs and an audited release bundle. Source remains private.
+  --output-dir PATH        New local output directory
+  --publish                Publish to the independent public repository through GitHub REST API
+  --activate-manifest      Activate public main manifest after release verification
+  --repo OWNER/REPO        Must be leon-wenhao/flow-quota-releases
 
-Options:
-  --version VERSION       Override the version from version.env
-  --build BUILD           Override the build number from version.env
-  --output-dir PATH       Write release files to an exact directory
+Set versions with scripts/set-version.sh before building.
+Resume publication without rebuilding:
+  python3 scripts/publish_macos.py --bundle PATH --activate-manifest
 USAGE
 }
-
 while (($#)); do
     case "$1" in
-        --version) VERSION="${2:?missing VERSION}"; shift 2 ;;
-        --build) BUILD_NUMBER="${2:?missing BUILD}"; shift 2 ;;
         --output-dir) OUTPUT_DIR="${2:?missing PATH}"; shift 2 ;;
+        --publish) PUBLISH=true; shift ;;
+        --activate-manifest) ACTIVATE=true; shift ;;
+        --repo) REPO="${2:?missing OWNER/REPO}"; shift 2 ;;
         --help|-h) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
-
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Version must use MAJOR.MINOR.PATCH: $VERSION" >&2
-    exit 2
-fi
-if [[ ! "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
-    echo "Build must be a positive integer: $BUILD_NUMBER" >&2
-    exit 2
-fi
-
-INFO_VERSION="$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$INFO_PLIST")"
-INFO_BUILD="$(/usr/bin/plutil -extract CFBundleVersion raw "$INFO_PLIST")"
-MANIFEST_VERSION="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["version"])' "$MANIFEST")"
-MANIFEST_BUILD="$(/usr/bin/python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["build"])' "$MANIFEST")"
-if [[ "$INFO_VERSION" != "$VERSION" || "$INFO_BUILD" != "$BUILD_NUMBER" ]]; then
-    echo "Info.plist does not match version.env: $INFO_VERSION/$INFO_BUILD vs $VERSION/$BUILD_NUMBER" >&2
-    echo "Run scripts/set-version.sh $VERSION $BUILD_NUMBER first." >&2
-    exit 1
-fi
-if [[ "$MANIFEST_VERSION" != "$VERSION" || "$MANIFEST_BUILD" != "$BUILD_NUMBER" ]]; then
-    echo "update-manifest.json does not match version.env: $MANIFEST_VERSION/$MANIFEST_BUILD vs $VERSION/$BUILD_NUMBER" >&2
-    echo "Run scripts/set-version.sh $VERSION $BUILD_NUMBER first." >&2
-    exit 1
-fi
-
-if [[ -z "$OUTPUT_DIR" ]]; then
-    OUTPUT_DIR="$ROOT/.artifacts/releases/FlowQuota-$VERSION-build-$BUILD_NUMBER"
-elif [[ "$OUTPUT_DIR" != /* ]]; then
-    OUTPUT_DIR="$ROOT/$OUTPUT_DIR"
-fi
-if [[ -e "$OUTPUT_DIR" ]]; then
-    echo "Output directory already exists: $OUTPUT_DIR" >&2
-    echo "Choose another --output-dir so an earlier release bundle is not overwritten." >&2
-    exit 1
-fi
-mkdir -p "$OUTPUT_DIR"
-
-ARM64_DMG="$OUTPUT_DIR/FlowQuota-$VERSION-dev-arm64.dmg"
-X64_DMG="$OUTPUT_DIR/FlowQuota-$VERSION-dev-x86_64.dmg"
-"$ROOT/scripts/build-macos.sh" --release --arm64 --version "$VERSION" --build "$BUILD_NUMBER" \
-    --dmg-output "$ARM64_DMG"
-"$ROOT/scripts/build-macos.sh" --release --x64 --version "$VERSION" --build "$BUILD_NUMBER" \
-    --dmg-output "$X64_DMG"
-
-cp "$MANIFEST" "$OUTPUT_DIR/update-manifest.json"
-(
-    cd "$OUTPUT_DIR"
-    shasum -a 256 "$(basename "$ARM64_DMG")" "$(basename "$X64_DMG")" > SHA256SUMS
-)
-
-VERSION="$VERSION" BUILD_NUMBER="$BUILD_NUMBER" OUTPUT_DIR="$OUTPUT_DIR" \
-MANIFEST="$MANIFEST" /usr/bin/python3 - <<'PY'
-import hashlib
-import json
-import os
-from pathlib import Path
-
-output = Path(os.environ["OUTPUT_DIR"])
-manifest = json.loads(Path(os.environ["MANIFEST"]).read_text(encoding="utf-8"))
-assets = []
-for path in sorted(output.glob("*.dmg")):
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    assets.append({"file": path.name, "sha256": digest})
-release = {
-    "version": os.environ["VERSION"],
-    "build": int(os.environ["BUILD_NUMBER"]),
-    "minimumSystemVersion": manifest.get("minimumSystemVersion"),
-    "releaseNotesURL": manifest.get("releaseNotesURL"),
-    "downloadURL": manifest.get("downloadURL"),
-    "assets": assets,
-    "signing": "ad-hoc",
-    "notarized": False,
+[[ "$REPO" == "leon-wenhao/flow-quota-releases" ]] || {
+    echo "Only the independent public distribution repository is permitted." >&2; exit 2;
 }
-(output / "release-manifest.json").write_text(
-    json.dumps(release, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-)
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$BUILD" =~ ^[1-9][0-9]*$ ]] || {
+    echo "Invalid canonical version/build." >&2; exit 2;
+}
+if $ACTIVATE && ! $PUBLISH; then
+    echo "--activate-manifest requires --publish." >&2; exit 2
+fi
+if $PUBLISH; then
+    [[ -z "$(git -C "$ROOT" status --porcelain)" ]] || {
+        echo "Commit reviewed source changes before publishing." >&2; exit 1;
+    }
+    command -v gh >/dev/null || { echo "Install gh and authenticate first." >&2; exit 1; }
+    gh auth status --hostname github.com >/dev/null
+    /usr/bin/python3 "$ROOT/scripts/public_repository.py" --repo "$REPO"
+fi
+INFO="$ROOT/macos/Configuration/Info.plist"
+[[ "$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$INFO")" == "$VERSION" &&
+   "$(/usr/bin/plutil -extract CFBundleVersion raw "$INFO")" == "$BUILD" ]] || {
+    echo "Info.plist mismatch; run scripts/set-version.sh first." >&2; exit 1;
+}
+/usr/bin/python3 - "$ROOT/update-manifest.json" "$VERSION" "$BUILD" <<'PY'
+import json, sys
+with open(sys.argv[1]) as source:
+    manifest = json.load(source)
+if (manifest['version'], manifest['build']) != (sys.argv[2], int(sys.argv[3])):
+    raise SystemExit('Source manifest mismatch; run scripts/set-version.sh first.')
 PY
-
-cat > "$OUTPUT_DIR/RELEASE-NOTES.md" <<EOF_NOTES
-# Flow Quota $VERSION
-
-- Version: $VERSION
-- Build: $BUILD_NUMBER
-- Minimum macOS: $(/usr/bin/plutil -extract LSMinimumSystemVersion raw "$INFO_PLIST")
-- Architectures: arm64, x86_64
-- Signing: local ad-hoc development signing
-- Notarization: not completed
-
-Assets:
-
-- FlowQuota-$VERSION-dev-arm64.dmg
-- FlowQuota-$VERSION-dev-x86_64.dmg
-
-Verify downloads with: shasum -a 256 -c SHA256SUMS.
-EOF_NOTES
-
+[[ -n "$OUTPUT_DIR" ]] || OUTPUT_DIR="$ROOT/.artifacts/releases/FlowQuota-$VERSION-build-$BUILD"
+[[ "$OUTPUT_DIR" = /* ]] || OUTPUT_DIR="$ROOT/$OUTPUT_DIR"
+[[ ! -e "$OUTPUT_DIR" ]] || { echo "Output already exists; choose a new directory." >&2; exit 1; }
+mkdir -p "$OUTPUT_DIR"
+"$ROOT/scripts/build-macos.sh" --release --arm64 --dmg-output "$OUTPUT_DIR/FlowQuota-$VERSION-arm64.dmg"
+"$ROOT/scripts/build-macos.sh" --release --x64 --dmg-output "$OUTPUT_DIR/FlowQuota-$VERSION-x86_64.dmg"
+/usr/bin/python3 "$ROOT/scripts/release_bundle.py" prepare --output "$OUTPUT_DIR" \
+    --source-manifest "$ROOT/update-manifest.json" --repo "$REPO" --version "$VERSION" --build "$BUILD"
+if $PUBLISH; then
+    ARGS=(--bundle "$OUTPUT_DIR" --repo "$REPO")
+    if $ACTIVATE; then ARGS+=(--activate-manifest); fi
+    /usr/bin/python3 "$ROOT/scripts/publish_macos.py" "${ARGS[@]}"
+fi
 printf 'Release bundle prepared: %s\n' "$OUTPUT_DIR"
-printf '%s\n' 'Upload the two DMGs to a GitHub Release after creating the matching tag.'

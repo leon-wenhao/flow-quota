@@ -26,7 +26,7 @@ struct ServiceFeedback: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(FlowQuotaRowButtonStyle())
         .disabled(feedback.entries.isEmpty)
         .frame(height: 24)
         .help(feedback.detail)

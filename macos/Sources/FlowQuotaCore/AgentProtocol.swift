@@ -2,11 +2,15 @@ import Foundation
 
 public enum AgentRequest: Codable, Sendable {
     case snapshot
+    case applicationTimeline(ApplicationTimelineQuery)
     case saveRule(appKey: String, rule: QuotaRule)
+    case saveCategoryRule(category: TrafficCategory, appKey: String, rule: QuotaRule)
     case setHotspotOverride(Bool)
     case startMonitoring
     case trafficAlertHistory(day: String, offset: Int)
     case saveTrafficAlertPolicy(TrafficAlertPolicy)
+    case saveCategoryTrafficAlertPolicy(category: TrafficCategory, policy: TrafficAlertPolicy)
+    case categoryTrafficAlertHistory(category: TrafficCategory, day: String, offset: Int)
     case acknowledgeTrafficAlert(id: String)
     case acknowledgeNotification(QuotaNotificationKey)
     case stopProtection
@@ -14,6 +18,7 @@ public enum AgentRequest: Codable, Sendable {
 
 public enum AgentReply: Codable, Sendable {
     case snapshot(AgentSnapshot)
+    case applicationTimeline(ApplicationUsageTimeline)
     case trafficAlertHistory([TrafficAlertEvent])
     case acknowledged
 }

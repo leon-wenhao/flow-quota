@@ -53,7 +53,7 @@ struct NotificationReceiptTests {
         try await reopened.prunePreviousDays()
         #expect(try await reopened.deliveredNotifications(day: previousDay).isEmpty)
         #expect(try await reopened.deliveredNotifications(day: fixture.day) == expected)
-        #expect(try await reopened.deliveredNotifications(day: futureDay).count == 1)
+        #expect(try await reopened.deliveredNotifications(day: futureDay).isEmpty)
         try await reopened.close()
         await expectStoreError(.closed) { try await reopened.deliveredNotifications(day: fixture.day) }
     }

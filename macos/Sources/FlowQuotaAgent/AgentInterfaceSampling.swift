@@ -26,11 +26,11 @@ extension AgentRuntime {
                          now: Date = Date(), uptime: UInt64? = nil) async {
         guard generation == samplingGeneration, !Task.isCancelled else { return }
         let uptime = uptime ?? samplingTime()
-        guard path.state.countsTraffic else {
+        guard let category = path.state.trafficCategory else {
             interfaceAccumulator.reset()
             interfaceAlertWindow.reset()
             interfaceSampledAt = nil
-            interfaceMessage = "当前不是可计量网络；保留今日已观测接口用量，不新增累计。"
+            interfaceMessage = "当前网络未知；保留两类今日接口用量，不分配新增流量。"
             return
         }
         guard case .selected(let index) = path.interfaceSelection else {
@@ -45,10 +45,7 @@ extension AgentRuntime {
         do {
             let day = try LocalDay.key(for: now, in: .current)
             // Retention must still run if nettop attribution and the UI are absent.
-            if day != lastPrunedDay {
-                try await store.prunePreviousDays()
-                lastPrunedDay = day
-            }
+            try await pruneIfNeeded(day: day)
             guard generation == samplingGeneration, !Task.isCancelled else { return }
             let counter = try interfaceReader.read(interfaceIndex: index)
             guard counter.interfaceIndex == index else {
@@ -63,12 +60,13 @@ extension AgentRuntime {
             }
             var next = interfaceAccumulator
             let delta = try next.consume(counter,
-                scope: InterfaceTrafficScope(day: day, pathGeneration: path.generation), uptime: uptime)
+                scope: InterfaceTrafficScope(day: day, pathGeneration: path.generation, category: category), uptime: uptime)
             // A zero baseline creates a known starting point. It never converts
             // the existing application ledger into interface traffic.
             try await store.recordSample(day: day, increments: [], interfaceIncrement:
                 InterfaceUsage(day: day, uploadedBytes: delta.uploadedBytes,
-                               downloadedBytes: delta.downloadedBytes))
+                               downloadedBytes: delta.downloadedBytes), category: category,
+                interfaceObservedAt: delta.rebaselined ? nil : now)
             guard generation == samplingGeneration else { return }
             guard observeNetwork().generation == path.generation else {
                 interfaceAccumulator.reset()
@@ -79,9 +77,10 @@ extension AgentRuntime {
             }
             interfaceAccumulator = next
             interfaceSampledAt = now
+            interfaceSampledCategory = category
             await evaluateInterfaceAlerts(day: day, uploaded: delta.uploadedBytes, downloaded: delta.downloadedBytes,
                 continuous: !delta.rebaselined, pathGeneration: path.generation, generation: generation,
-                now: now, uptime: uptime)
+                now: now, uptime: uptime, category: category)
             guard generation == samplingGeneration else { return }
             interfaceMessage = delta.rebaselined
                 ? "已重建物理接口基线；此前或间断期间的流量未知。"

@@ -10,7 +10,7 @@ struct TrafficAlertIntegrityTests {
         let store = try fixture.open()
         let db = try SQLiteConnection(path: fixture.path)
         for assignment in [
-            "id = 2", "daily_interface_bytes = 0", "daily_interface_bytes = -1",
+            "category = 'invalid'", "category = NULL", "category = x'01'", "daily_interface_bytes = 0", "daily_interface_bytes = -1",
             "interface_burst_bytes = 1.5", "application_burst_bytes = x'01'",
             "daily_interface_bytes = 9223372036854775808", "window_seconds = NULL", "window_seconds = 59",
             "window_seconds = 901", "window_seconds = 60.5", "cooldown_seconds = 59",
@@ -22,7 +22,7 @@ struct TrafficAlertIntegrityTests {
         #expect(throws: StoreError.self) { try db.execute("INSERT INTO traffic_alert_settings SELECT * FROM traffic_alert_settings") }
         try await store.saveTrafficAlertPolicy(alertPolicy(version: Int64.max, daily: Int64.max, burst: nil, app: nil,
                                                            window: 900, cooldown: 86400))
-        #expect(try db.scalar("SELECT version FROM traffic_alert_settings") == Int64.max)
+        #expect(try db.scalar("SELECT version FROM traffic_alert_settings WHERE category = 'metered'") == Int64.max)
         try db.close(); try await store.close()
     }
 

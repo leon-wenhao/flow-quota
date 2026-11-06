@@ -3,9 +3,8 @@ import Foundation
 public enum NetworkState: String, Codable, Sendable {
     case unknown, ordinary, hotspot, expensive
 
-    /// Current policy: automatic system cost signals and manual hotspot marks
-    /// share the daily reminder budget. Cost does not establish hotspot identity.
-    public var countsTraffic: Bool { self == .expensive || self == .hotspot }
+    /// All available paths count, in separate accounting categories.
+    public var countsTraffic: Bool { trafficCategory != nil }
 }
 
 public enum ProtectionReadiness: String, Codable, Sendable {
@@ -45,6 +44,8 @@ public struct AgentSnapshot: Codable, Sendable {
     public let trafficAlertEvents: [TrafficAlertEvent]
     public let pendingTrafficAlerts: [TrafficAlertEvent]
     public let trafficAlertMessage: String
+    public let trafficCategories: [TrafficCategorySnapshot]?
+    public let mihomoProxy: MihomoProxySnapshot?
 
     public init(generatedAt: Date, network: NetworkState, readiness: ProtectionReadiness,
                 applications: [ApplicationSnapshot], message: String,
@@ -54,7 +55,9 @@ public struct AgentSnapshot: Codable, Sendable {
                 interfaceMessage: String = "接口总量尚未就绪。",
                 trafficAlertPolicy: TrafficAlertPolicy? = nil,
                 trafficAlertEvents: [TrafficAlertEvent] = [], pendingTrafficAlerts: [TrafficAlertEvent] = [],
-                trafficAlertMessage: String = "短时预警尚未开始。") {
+                trafficAlertMessage: String = "短时预警尚未开始。",
+                trafficCategories: [TrafficCategorySnapshot]? = nil,
+                mihomoProxy: MihomoProxySnapshot? = nil) {
         self.generatedAt = generatedAt
         self.network = network
         self.readiness = readiness
@@ -72,5 +75,7 @@ public struct AgentSnapshot: Codable, Sendable {
         self.trafficAlertEvents = trafficAlertEvents
         self.pendingTrafficAlerts = pendingTrafficAlerts
         self.trafficAlertMessage = trafficAlertMessage
+        self.trafficCategories = trafficCategories
+        self.mihomoProxy = mihomoProxy
     }
 }

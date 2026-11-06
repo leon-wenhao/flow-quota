@@ -11,14 +11,14 @@ extension AppState {
     var interfaceUsageIsPreserved: Bool {
         guard interfaceUsageAvailable, let snapshot else { return false }
         // Application sampler failure does not stop independent interface sampling.
-        return snapshot.monitoring == .paused || !snapshot.network.countsTraffic
+        return snapshot.monitoring == .paused || snapshot.network.trafficCategory != selectedTrafficCategory
             || !interfaceSampleIsCurrent
     }
 
     var interfaceUsageReason: String {
         guard connected else { return "接口总量未知：本地服务未连接。" }
         guard snapshotIsCurrent else { return "接口总量未知：服务快照已过期或不属于今天，请刷新。" }
-        guard let usage = snapshot?.interfaceUsage else {
+        guard let usage = categoryInterfaceUsage else {
             return "接口总量未知：尚无有效的当日接口累计；应用用量不会用于补齐总量。"
         }
         guard usage.day == Self.localDay() else { return "接口总量未知：接口累计日期与今天不符。" }
@@ -31,7 +31,7 @@ extension AppState {
     }
 
     var interfaceServiceMessage: String {
-        guard let message = snapshot?.interfaceMessage,
+        guard let message = categorySnapshot?.interfaceMessage ?? (selectedTrafficCategory == .metered ? snapshot?.interfaceMessage : nil),
               !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return "接口总量尚未就绪。"
         }
@@ -39,24 +39,25 @@ extension AppState {
     }
 
     var interfaceSampleTimeText: String {
-        guard let date = snapshot?.interfaceSampledAt else { return "接口最近采样：尚无有效采样时间" }
+        guard let date = categoryInterfaceSampledAt else { return "接口最近采样：尚无有效采样时间" }
         return "接口最近采样：\(date.formatted(date: .abbreviated, time: .standard))"
     }
 
-    var menuBarUsageText: String {
-        let value = UsageFormatter.bytes(totalUsage)
-        return interfaceUsageIsPreserved ? "已保留 \(value)" : value
+    var menuBarUsageText: String { UsageFormatter.compactBytes(totalUsage) }
+
+    var menuBarUsageAccessibilityLabel: String {
+        "Flow Quota，今日\(selectedTrafficCategory.title)接口总量：\(UsageFormatter.bytes(totalUsage))。\(interfaceUsageReason)"
     }
 
     var interfaceMenuHelp: String {
-        "今日计量接口总量：\(UsageFormatter.bytes(totalUsage))。\(interfaceUsageReason)\n"
+        "今日\(selectedTrafficCategory.title)接口总量：\(UsageFormatter.bytes(totalUsage))。\(interfaceUsageReason)\n"
             + "\(interfaceServiceMessage)\n\(interfaceSampleTimeText)\n"
             + "本机物理接口上传＋下载观测增量，包含局域网流量与协议开销；"
             + "不含手机自身或其他设备的流量，不等于运营商账单。接口总量与应用归因各自按配置判断提醒。"
     }
 
     private var interfaceSampleIsCurrent: Bool {
-        guard let sampledAt = snapshot?.interfaceSampledAt,
+        guard let sampledAt = categoryInterfaceSampledAt,
               let day = try? LocalDay.key(for: sampledAt, in: .current),
               day == Self.localDay() else { return false }
         return (-5...8).contains(Date().timeIntervalSince(sampledAt))

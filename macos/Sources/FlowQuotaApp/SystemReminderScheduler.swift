@@ -24,7 +24,7 @@ import UserNotifications
 
     static func request(for alert: TrafficAlertEvent) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
-        content.title = alert.kind.title
+        content.title = "\(alert.category.title) · \(alert.kind.title)"
         let interval = alert.kind == .dailyInterface ? "今日累计"
             : "最近最多 \(alert.windowSeconds / 60) 分钟内（连续观测 \(alert.observedSeconds) 秒）"
         let classification = SystemProcessClassification(identity: AppIdentity(key: alert.sourceKey, name: alert.sourceName))
@@ -38,8 +38,8 @@ import UserNotifications
     static func request(for notification: ReminderNotification) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         // `.blocked` is a legacy persistence key. This app only reports threshold crossings.
-        content.title = notification.key.kind == .blocked ? "已达到每日提醒阈值" : "接近每日提醒阈值"
-        content.body = "\(notification.appName)：今日高成本／手动热点观测用量 \(UsageFormatter.bytes(notification.usedBytes))，提醒阈值 \(UsageFormatter.bytes(notification.limitBytes))。仅作提醒，连接继续。"
+        content.title = "\(notification.key.category.title) · " + (notification.key.kind == .blocked ? "已达到每日提醒阈值" : "接近每日提醒阈值")
+        content.body = "\(notification.appName)：今日\(notification.key.category.title)观测用量 \(UsageFormatter.bytes(notification.usedBytes))，提醒阈值 \(UsageFormatter.bytes(notification.limitBytes))。仅作提醒，连接继续。"
         content.sound = .default
         // Apple replaces a still-pending request with the same identifier. A crash between
         // scheduling and durable ACK may nevertheless present again; no exactly-once promise.

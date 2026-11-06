@@ -21,14 +21,14 @@ extension QuotaStore {
             // An exact replay of an acknowledged row is harmless, but callers
             // cannot import a scheduling timestamp into a new outbox event.
             guard event.scheduledAt == nil else { throw TrafficAlertError.invalidEvent }
-            let policy = try trafficAlertPolicy()
+            let policy = try trafficAlertPolicy(category: event.category)
             guard TrafficAlertRecord.matchesPolicy(event, policy) else { return false }
             // Do not bound this query by the proposed occurrence/cooldown: an
             // occurrence behind the persisted maximum must suppress after restart.
             let latest = try database.query("""
                 SELECT MAX(occurred_at_ms) FROM traffic_alert_events
-                WHERE day = ? AND kind = ? AND source_key = ? AND policy_version = ?
-                """, [.text(today), .text(event.kind.rawValue), .text(event.sourceKey), .integer(event.policyVersion)]) {
+                WHERE day = ? AND kind = ? AND source_key = ? AND policy_version = ? AND category = ?
+                """, [.text(today), .text(event.kind.rawValue), .text(event.sourceKey), .integer(event.policyVersion), .text(event.category.rawValue)]) {
                     $0.optionalInteger(0)
                 }.first ?? nil
             if let latest {
@@ -39,20 +39,20 @@ extension QuotaStore {
                 throw TrafficAlertError.eventLimit
             }
             try database.execute("""
-                INSERT INTO traffic_alert_events (\(TrafficAlertRecord.columns)) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO traffic_alert_events (\(TrafficAlertRecord.columns)) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, try TrafficAlertRecord.bindings(event))
             return true
         }
     }
 
     /// At most 256 most recent events; UUID descending makes timestamp ties stable.
-    public func trafficAlertEvents(day: String, limit: Int = 256, offset: Int = 0) throws -> [TrafficAlertEvent] {
+    public func trafficAlertEvents(day: String, limit: Int = 256, offset: Int = 0, category: TrafficCategory = .metered) throws -> [TrafficAlertEvent] {
         try StoreDay.validate(day)
         guard (1...256).contains(limit), (0...256).contains(offset) else { throw TrafficAlertError.invalidEvent }
         return try database.query("""
             SELECT \(TrafficAlertRecord.columns) FROM traffic_alert_events
-            WHERE day = ? ORDER BY occurred_at_ms DESC, id DESC LIMIT ? OFFSET ?
-            """, [.text(day), .integer(Int64(limit)), .integer(Int64(offset))], row: TrafficAlertRecord.read)
+            WHERE day = ? AND category = ? ORDER BY occurred_at_ms DESC, id DESC LIMIT ? OFFSET ?
+            """, [.text(day), .text(category.rawValue), .integer(Int64(limit)), .integer(Int64(offset))], row: TrafficAlertRecord.read)
     }
 
     /// ACK means OS scheduling acceptance. The injected service clock determines
@@ -64,7 +64,7 @@ extension QuotaStore {
             let now = clock()
             guard try StoreDay.label(at: now, calendar: calendar) == day else { throw StoreError.inactiveDay }
             guard let event = try trafficAlert(id: id), event.day == day else { throw StoreError.unknownTrafficAlert(id) }
-            guard try TrafficAlertRecord.matchesPolicy(event, trafficAlertPolicy()) else { throw StoreError.staleTrafficAlertPolicy }
+            guard try TrafficAlertRecord.matchesPolicy(event, trafficAlertPolicy(category: event.category)) else { throw StoreError.staleTrafficAlertPolicy }
             if event.scheduledAt != nil { return }
             let scheduled = try TrafficAlertRecord.milliseconds(now)
             guard scheduled >= (try TrafficAlertRecord.milliseconds(event.occurredAt)) else { throw TrafficAlertError.invalidEvent }

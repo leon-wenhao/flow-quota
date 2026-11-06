@@ -14,6 +14,9 @@ public struct TrafficAlertPolicy: Codable, Sendable, Equatable {
         interfaceBurstBytes: 200_000_000, applicationBurstBytes: 200_000_000,
         windowSeconds: 180, cooldownSeconds: 600, version: 1)
 
+    public static let disabled = try! TrafficAlertPolicy(dailyInterfaceBytes: nil,
+        interfaceBurstBytes: nil, applicationBurstBytes: nil, version: 1)
+
     public init(dailyInterfaceBytes: Int64?, interfaceBurstBytes: Int64?, applicationBurstBytes: Int64?,
                 windowSeconds: Int = 180, cooldownSeconds: Int = 600, version: Int64) throws {
         self.dailyInterfaceBytes = dailyInterfaceBytes

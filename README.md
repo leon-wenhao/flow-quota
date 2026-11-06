@@ -2,7 +2,7 @@
 
 <img src="assets/brand/logo-preview.png" alt="Flow Quota Logo" width="120" height="120">
 
-macOS 原生菜单栏工具：独立观测高成本网络／手动热点接口总量，并分析各应用流量，配置接口每日总量、短时大流量及应用每日阈值，通过本地通知提醒。当前版本不自动阻断连接。Windows 只保留后续接入入口。
+macOS 原生菜单栏工具：分别观测热点／高成本与普通网络接口总量，并分析各应用流量，配置接口每日总量、短时大流量及应用每日阈值，通过本地通知提醒。当前版本不自动阻断连接。Windows 只保留后续接入入口。
 
 ## 当前能力与统计口径
 
@@ -10,7 +10,14 @@ macOS 原生菜单栏工具：独立观测高成本网络／手动热点接口�
 
 **记录的是连续观测区间内的增量，不是完整自然日账单。** 首次采样建立基线，只有明确在已观测区间内新启动的进程才可计入首批计数。启动前、进程在采样间隔内已退出、睡眠、切网、采样故障等可能漏计。应用按路径归并，代理/TUN、共享系统进程和多网卡场景的归属与重复不能保证。应用合计不等于物理接口或运营商计费流量。
 
-系统报告可用且 `NWPath.isExpensive` 的连接时自动计量（`.expensive`）；高成本信号不等于已确认手机热点、设备或运营商。用户明确手动标记的连接为 `.hotspot`，与高成本网络共用同一应用、当前日用量和提醒预算，切网不重置、不另发额度。普通网络（`.ordinary`）不自动累计，网络状态不可用（`.unknown`）不自动累计；两者保留手动标记入口。网络更新会清除手动标记并重新判断。实际采集涵盖 nettop 的 external 接口，不能保证多网卡同时使用时只统计所选路径。
+系统报告可用且 `NWPath.isExpensive` 的连接时自动计量（`.expensive`）；高成本信号不等于已确认手机热点、设备或运营商。用户明确手动标记的连接为 `.hotspot`，与高成本网络共用同一应用、当前日用量和提醒预算，切网不重置、不另发额度。普通网络（`.ordinary`）也独立累计，两类总量、应用用量、提醒规则与通知去重互不混合。热点／高成本类新配置默认开启预警，普通网络提醒默认关闭。网络状态不可用（`.unknown`）不分配新增流量。手动热点仅修正当前连接分类，关闭后普通网络仍统计。网络更新会清除手动标记并重新判断。实际采集涵盖 nettop 的 external 接口，不能保证多网卡同时使用时只统计所选路径。
+
+面板顶部可切换“热点／高成本”和“普通网络”，总览、应用明细、图表、预警记录与提醒设置跟随所选类别。菜单栏用量标明当前查看类别；类别切换不改变实际网络归类。schema v5 将已有数据和设置原样归入热点／高成本类，普通网络从启用后的有效采样开始累计，不追溯拆分旧流量。
+
+图表新增代码已实现：主面板「用量图表」可直接进入接口分时图与今日环形饼图，
+时间可选最近一小时、今天或当天自定义区间。schema v6 新增分类接口分钟汇总，
+从新有效采样开始记录，不把旧日总量回填成历史时段；空白时段表示未观测。
+此处描述源码能力，安装版及构建验证进度见 `docs/implementation-status.md`。
 
 ## 本地构建与运行
 
@@ -29,11 +36,11 @@ open ".artifacts/arm64/Flow Quota.app" --args --window
 开发包覆盖更新可能留下旧界面进程或失效的后台注册，不能以文件复制成功代替服务连接恢复。针对 Agent 已停止且没有 nettop 的故障场景，可在构建后运行 `./scripts/install-macos-dev-paused.sh`：整体替换签名包、保存旧包、重新登记安装版并通过系统启动流程修复，完成后保持采集暂停。脚本拒绝替换仍在运行的采集服务；正常采集状态应先完成受控暂停。恢复记录见 `docs/implementation-status.md`「覆盖更新后服务连接异常恢复」。
 
 
-含后台大流量预警的新版已安装到 `/Applications/Flow Quota.app`，生产库 v3→v4 升级与暂停状态的真实 XPC、界面检查通过。为避免热点实验，当前保持暂停，尚未进行真实接口计量验收；系统通知仍待用户授权。详见[验证记录](docs/implementation-status.md)。
+含两类网络独立统计与提醒的新版 0.1.0（build 2）已安装到 `/Applications/Flow Quota.app`，生产库 v4→v5 升级及暂停状态的真实 XPC 分类账本检查通过，旧数据和设置与备份一致。当前保持暂停，可在采集 Switch 自行恢复；未进行热点实验或真实计量误差验收。详见[验证记录](docs/implementation-status.md)。
 
 ## 发布
 
-本地开发版发布流程见 [macOS 发布流程](docs/release-macos.md)。使用 `scripts/set-version.sh` 同步版本号，再运行 `scripts/release-macos.sh` 生成 arm64／x86_64 DMG、SHA-256 校验和及更新清单副本。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，发布前需要按文档手动创建 GitHub Release。
+源码仓库保持私有，安装包和公开资料使用独立的 `leon-wenhao/flow-quota-releases` 仓库。流程见 [公开分发方案](docs/public-distribution-plan.md) 与 [macOS 发布流程](docs/release-macos.md)。使用 `scripts/set-version.sh` 同步版本号；通过 `scripts/public_repository.py` 同步公开资料后，运行 `scripts/release-macos.sh --publish --activate-manifest`，核对双架构 DMG 后发布并激活公开更新清单。客户端只在设置页点击“检查更新”时访问更新清单；发现更新后可下载并打开 DMG，用户手动将应用拖入 Applications。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，首次打开可能需要在系统设置的隐私与安全性中选择“仍要打开”。
 
 ## 首次使用与验证
 
@@ -61,7 +68,7 @@ open ".artifacts/arm64/Flow Quota.app" --args --window
 | shared/test-vectors | 后续两端共用的额度测试向量 |
 | windows | 后续接入说明，无应用或驱动 |
 
-UI 不直接读写数据库。数据目录为 `~/Library/Application Support/FlowQuota/`：目录 0700，数据库及 sidecar 0600；拒绝不安全路径和链接。当前 schema v3 独立保存按日接口总量，事务迁移保留原应用账本；不将应用合计当作接口历史。
+UI 不直接读写数据库。数据目录为 `~/Library/Application Support/FlowQuota/`：目录 0700，数据库及 sidecar 0600；拒绝不安全路径和链接。源码 schema v6：v3 独立保存按日接口总量，v5 隔离两类网络账本，v6 增加当天接口分钟汇总。事务迁移保留旧账本；不将应用合计当作接口历史。
 
 ## 接续开发
 

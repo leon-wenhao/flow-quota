@@ -2,6 +2,28 @@
 
 更新：2026-11-05，Asia/Shanghai。当前为 macOS 自用的流量采样统计与阈值通知，暂不自动阻断。本轮在独立接口总量之上加入后台大流量预警，严格遵守用户“不用热点流量做实验性验证”的限制。未来阻断仍需单独实现与验收。
 
+## Clash 来源合入应用列表（2026-11-05）
+
+已把 API 细分合入普通应用列表：依据固定站点域名显示 `YouTube（Clash）`、`虎牙直播（Clash）`，未知站点回退完整路径确定的应用，无法确认来源时明确显示未知。每行区分“本次代理观测”与普通应用“每日归因”，可点开查看上下行、来源应用与计量范围；已确认 Mihomo 内核隐藏于普通列表，诊断只放用量详情。DIRECT 标签也表示由 Clash 处理，不声称走代理节点。
+
+同时修复上一版 `startMihomoSampling` 未接入主启停流程的问题。首帧／故障恢复／切网／跨日和超过八秒间隔重新基线；按类别保留本次服务运行的来源累计，关闭连接或暂停不清空，重启不回填。每类最多 128 项且容量限制可见，不保存原始域名、IP、连接流水，不写 nettop 日账本，不增加接口总量。官方字段已按 v1.19.33 固定版本核对。实现细节见 `mihomo-api.md`。
+
+原生 SwiftUI 模拟预览保存于 `/tmp/flow-quota-clash-list-preview.png`，明确标记模拟数据。最终完整回归 **310 项通过**，无编译警告；日志 `.artifacts/mihomo-attribution-final-tests.log`。arm64 release 与严格 ad-hoc 签名检查通过，日志 `.artifacts/mihomo-attribution-build-arm64.log`。下方旧卡片和旧 schema 记录属于历史版本。
+
+本机最终安装为 0.1.0 build 3，arm64 release 与严格签名检查通过。相同 build 2 的再次替换曾出现 launchd 无法解析 BundleProgram／EX_CONFIG；保留旧包与暂停启动环境，递增构建号后使用官方 SMAppService 重注册，正式 XPC 自检恢复成功并确认 paused。现有 31 项应用记录、预警规则版本 17 和原 8 张业务表内容摘要全部保留；当前工作区已有图表功能在安装时执行 v5→v6 迁移，仅新增 interface_usage_minutes，Clash 归因未新增表。没有 nettop 进程，未产生下载、上传、测速或热点实验流量。最终证据为 `.artifacts/mihomo-attribution-install/final-verification.json`，安装日志中保留旧包备份路径。真实 YouTube／虎牙业务字节归因尚未做联网实验验收。
+
+## Mihomo controller API 观测（2026-11-05）
+
+已接入 Clash Verge 当前使用的用户 Unix Socket：`/var/run/clash-verge-service/users/<uid>/verge-mihomo.sock`。Flow Quota 通过公共 Unix domain socket API 只读请求 `/connections`，解析上传／下载总量、活动连接及 `processPath`／`process` 元数据；不启动 curl、不读 controller secret、不修改配置。API 观测以本次连续运行作为范围，首帧建立基线，服务重启或计数回退重建基线。
+
+新增代理卡片显示“本次代理观测”、活动连接数及可关联的原始进程摘要。它与物理接口总量、nettop 应用账本独立展示，可能重叠，不写 `daily_usage`，不新增数据库表，也不把代理总量加到接口总量。连接在两次 API 读取之间关闭时，来源摘要不强行归因；无法关联显示来源应用未确认。API 故障显示 stale／unavailable，不继续累计未知区间。
+
+- **252 项完整回归通过**：Core 68、Store 9、Platform 65、App 77、Agent 33。新增 Mihomo JSON 边界、首帧／连续增量／重启基线、分块 HTTP 响应、请求路径和异常连接测试；日志 `.artifacts/mihomo-implementation-tests.log`。
+- 本机实际编译的客户端通过当前 Mihomo Unix Socket 读取验证：55 条活动连接、7 条带进程路径的记录；验证只输出字段数量，`physical_interface_counters_read=false`、`mihomo_connection_bytes_read=true`、`ledger_written=false`，证据 `.artifacts/mihomo-api-check.json`。
+- arm64／x86_64 构建和严格签名检查通过，日志 `.artifacts/mihomo-build-arm64.log`、`.artifacts/mihomo-build-x64.log`。完整安装后真实 XPC 自检通过，服务保持 paused；数据库 schema v4、31 条应用／当日用量和所有表摘要保留，证据 `.artifacts/mihomo-install/final-verification.json`。
+- 安装过程中 launchd 再次出现开发签名缓存导致的 `EX_CONFIG 78`，通过只针对 Flow Quota 的 LaunchServices 刷新和应用内 SMAppService 重注册恢复；没有关闭代码签名校验或修改系统安全设置。
+- 没有生成下载、上传、测速或热点实验流量；API 的连接内容没有写入生产库。API 只能尽力关联原始进程，不能保证所有 VPN/TUN/IPv6 场景或恢复已关闭连接的来源。实现边界见 `mihomo-api.md`。
+
 ## 用户选定 C「流量刻度」图标（2026-11-05）
 
 第二轮三方案中用户明确选择 C。已将深青底板、薄荷绿圆角用量柱和分离阈值圆点接入 `BrandIdentity.swift`，应用 ICNS、窗口标题标记和菜单栏复用相同矢量源。SVG 导出与 SwiftUI 同用几何和配色；正式 1024 PNG 与选定的 `concepts-v2/C-meter.png` SHA-256 完全一致。原 A／B／C 提案保留供比较。
@@ -219,3 +241,189 @@ arm64、x86_64 开发构建及脚本签名检查通过，已将 arm64 新包替�
 - 发布步骤和命令见 `docs/release-macos.md`；脚本不创建 GitHub Release、不上传文件、不执行 Developer ID 签名或公证。
 
 使用当前 `0.1.0` build `1` 实际运行发布准备脚本，两个 DMG 均生成成功，两个 SHA-256 校验均通过，最终 `.app` 的 `CFBundleShortVersionString` 和 `CFBundleVersion` 分别为 `0.1.0` 和 `1`。系统 Python 使用绝对路径，避免本机失效的 Conda 架构阻塞发布脚本。
+
+
+## 双网络类别统计与独立提醒（2026-11-05）
+
+热点／高成本（metered）与普通网络（ordinary）均在采集开启时统计。可用高成本路径与
+手动热点共用 metered，普通 Wi-Fi／有线使用 ordinary；未知网络不分配新增量。
+接口每日累计、应用每日累计／规则版本、全局预警配置、应用通知去重、事件冷却均按
+类别隔离。普通网络新配置三类预警关闭，无应用每日规则；已有 metered 设置保留。
+两类事件共用当天 256 条上限；仍不保存采样流水、内容或跨日历史。详细设计见
+network category 章节及 database-design.md schema v5。
+
+新增 TrafficCategory / TrafficCategorySnapshot，主快照同时提供两类账本，保留旧的
+metered 字段和请求兼容。旧服务缺失普通类时，UI 显示未知且禁用编辑。服务将类别
+传入应用与接口提交、通知判定／ACK、策略及历史读取。切换类别重建采样基线和滚动
+窗口，不搬移已提交流量；保存非活动类别配置不清空活动窗口。旧通知键缺失类别时
+按 metered 解码，并保留 metered 的旧 OS 请求 ID，ordinary 使用独立请求命名空间。
+
+面板顶部增加原生分段类别选择，总览、应用、图表、记录及提醒设置跟随查看类别，
+实际连接仍单独展示。菜单栏标注查看类别。手动热点只修正实际连接分类，关闭后
+普通网络仍会统计。编辑器捕获打开时类别，避免另一窗口切换查看范围后把草稿写入
+错误账本。通知标题／正文标明类别，后台投递不受当前查看类别影响。
+
+验证：完整 **284 项测试通过**（XCTest 37、Store 68、Platform 60、Core Swift Testing 9、
+App 77、Agent 33）。新增 16 项针对分类隔离、旧字段保留、DDL 中途失败回滚、缺失旧
+配置拒绝迁移、重启、跨日清理、全局事件容量、模拟接口切换、应用窗口／提醒独立、
+旧 IPC 兼容、跨窗口编辑目标的测试。保留约束测试改用显式列名，避免列数变化使测试
+只验证 SQL 语法而未验证实际约束。共享规则向量已同步；类别点查询和预警去重查询
+的 EXPLAIN QUERY PLAN 使用对应索引。日志：.artifacts/network-categories-tests.log。
+
+Apple Silicon 和 Intel 构建／严格签名验证通过，开发包版本为 0.1.0（build 2），日志
+.artifacts/network-categories-build-arm64.log 和 network-categories-build-x64.log。
+最低系统版本 macOS 14，Xcode 27.2 / Swift 6.4.2；未新增第三方依赖或 entitlement。
+数据库迁移参考 SQLite ALTER TABLE 官方说明；本项目只替换无入向外键的子表，
+整个迁移保留 foreign_keys=ON 与最终 foreign_key_check，失败事务整体回滚。
+
+本机安装：先用旧签名应用的 --verify-agent-paused 确认暂停并备份生产 v4 数据库，
+整体替换 /Applications/Flow Quota.app。首次脚本在清理未登记开发包时遇到 -10814，
+已修正为仅将该已知“无登记”结果视为可继续；其他错误仍失败。随后同 build 1 注册
+出现系统启动约束不匹配／EX_CONFIG 78，静态签名通过；递增至 build 2 后使用相同
+SMAppService 和严格 XPC 要求注册成功，未关闭安全检查。构建号变化与重登记共同
+完成恢复，不能据此断言单一缓存原因。正式发布清单仍保持已发布 build 1，本轮未发布。
+
+最终真实 XPC 证据：.artifacts/service-repair.VoYbi3/service-1.json，确认服务 enabled、
+monitoring=paused、trafficCategories=[metered, ordinary]、ordinaryRemindersEnabled=false，
+31 个已有来源可读，metered 预警版本 17 保留。生产库 schema=5；8 张旧表的业务字段
+投影与暂停前备份逐表摘要一致（设置表的旧固定 id=1 映射为 metered），完整性检查 ok、
+无 FK 违规。ordinary 账本尚无应用／接口采样行，未把未知旧流量造为零。证据与数据库
+备份：.artifacts/network-categories-install/；最初旧应用在
+.artifacts/service-repair.vwuWUn/Previous Flow Quota.app。临时启动环境已清理。
+
+当前新版已重新打开，服务保持暂停，无 nettop；用户可在采集 Switch 自行恢复。
+未用热点流量进行实验，未验证真实跨网络计量误差或通知横幅展示；接口及应用归因仍
+受既有多网卡／VPN／共享服务边界约束，不承诺运营商账单精度。
+
+交付时发现其他会话正在并行新增 Mihomo API 观测代码（AgentMihomoSampling 等）；本节测试、构建及安装证据对应本轮 build 2，未替换、回退或验证其他会话尚在编辑的功能。
+
+
+## 当天分时图、饼图及图表快捷入口（2026-11-05）
+
+代码已实现：主面板「用量图表」快捷入口直接打开 UsageDashboardView。该页面
+在并行的偏好窗口改造中也通过 PreferencesNavigation.charts 复用；本任务不覆盖
+对方的 PanelView／OverviewView 后续改造，不并行替换或重新注册安装版。
+
+- 今日接口上传／下载、今日应用归因分别使用环形饼图及字节／百分比图例。应用
+  前五项加「其他应用」，分母包含全部有效归因；同名应用保持原身份，归因可能
+  重叠的说明保留，不把应用占比当作接口份额。
+- 页面首屏为接口分时图，支持最近一小时、今天、当天自定义起止。短范围按
+  5 分钟、长范围按 30 分钟聚合，选择时段显示上下行、记录分钟数及有效样本数。
+  使用显式时间边界的 RectangleMark 防止孤立柱扩展至未知时段。空白是未知，
+  点为有效零值；记录存在也可能只覆盖该时段部分时间。范围筛选只影响接口
+  分时图，饼图／排行明确为今日累计。
+- 源码 schema v6 仅新增 interface_usage_minutes。单个服务 store actor 将有效
+  连续接口增量的分钟汇总与独立日汇总原子提交；基线不产生分钟记录。分类、
+  日期隔离，重启保留，日切清理；不回填旧汇总或间断，不记录逐次采样和内容。
+  新分钟数据随现有分类快照传给 UI，旧 IPC 缺字段显示未支持，不猜测零值。
+
+环境与官方依据：沿用 Swift tools 6.0／最低 macOS 14，实际 Xcode 27.2、Swift
+6.4.2、SDK 27.2。Apple SectorMark、chartXSelection(value:) 的官方 JSON 均确认
+macOS 14 起可用；分时矩形依据 RectangleMark 的四个 PlottableValue 范围参数，
+不能将 BarMark 的固定 CGFloat 范围参数当成时间范围。SQLite CREATE TABLE
+官方参考已下载至 `.artifacts/minute-schema-sqlite-reference.html`。设计及来源详见
+ui-implementation.md 与 database-design.md 的 v6 章节。
+
+验证：新增 15 个针对性测试（Store 8、App 6、Agent 1），覆盖分类分钟累计、
+有效零／无观测、分钟边界、重启、无效日期、原子溢出回滚、v5 升级保留及迁移
+失败重试、双类别日清理、schema 约束、分时范围／25 小时日／重复与无效数据、
+饼图尾项分母，以及模拟采样的基线／间断／切网与分类 IPC 数据。1440 行代表性
+分钟数据的 EXPLAIN QUERY PLAN 为复合主键 INDEX SEARCH，无全表扫描或临时排序。
+
+全量回归在本次源码快照上通过 310 项（XCTest 37、Store 76、Platform 65、Core 9、
+App 89、Agent 34），日志 `.artifacts/usage-time-charts-tests.log`。之后对“最近一小时”
+按分钟对齐的展示微调，重新编译及相关 29 项检查通过，日志
+`.artifacts/usage-time-charts-targeted.log`。git diff --check 通过。并行会话仍在改偏好
+窗口和其他功能，上述结果不是这些后续修改的最终签名／安装／整体验收结论。
+
+本任务未修改生产数据库、未启动或暂停真实采集、未替换 /Applications 安装包；
+未生成热点下载／上传／测速流量。真实安装迁移、图表指针交互和视觉走查、Intel
+构建／签名及 CPU／写入性能尚未在本轮验证。旧安装版的 build 2／schema v5 证据
+仍是上次分类功能的记录，不能宣称本次图表已安装。后续整体安装必须先暂停并
+备份、使用更高 build 号和完整签名包，沿用严格 XPC 身份验证，不覆盖单个文件。
+
+
+## 菜单栏占位缩减（2026-11-05）
+
+已通过当前安装版真实通用设置关闭“菜单栏显示用量”，原生 UI 回读 Value: off；
+状态项现在按既有偏好只保留图标，重开保留此选择。未改变采集、登录项、通知
+或数据库。当前运行版界面报告 build 2，本任务未覆盖安装包或重注册服务。
+
+源码同步实现紧凑数值：UsageFormatter.compactBytes 采用十进制整数舍入，输出
+如 626M、1.2G，最多四个 ASCII 字符，未知为 —；状态项不再重复类别和“已保留”，
+间距 4 -> 2 pt。完整类别、单位、保留状态和计量说明仍通过 tooltip、面板和
+独立 accessibilityLabel 呈现，图标既有淡化规则保留。开关偏好继续沿用原 key；
+用户日后开启用量文字时，紧凑格式须在包含本次改动的新应用中生效。
+
+按展示改动范围更新已有断言，未新增测试框架或采样逻辑。编译和相关 76 项
+既有检查通过（Store 19、Platform 26、App 18、Agent 13），日志
+`.artifacts/compact-menu-bar-tests.log`；git diff --check 通过。未生成真实流量，
+未做本次数值格式的安装／签名验收。
+
+
+## 2026-11-05：独立偏好设置窗口
+
+菜单栏已精简为快速概览，独立原生窗口集中应用列表、图表、详情、预警设置／记录、通用设置及说明；支持标题栏拖动、调整大小、位置记忆及单实例复用，关闭窗口不改变后台采集。保存反馈维持固定底栏，避免重新引入滚动抖动。入口与技术边界见 `ui-implementation.md`。最终集成回归 310 项通过，原生窗口与滚动稳定性测试通过；本机 build 3 已安装并通过签名及暂停 XPC 自检，旧数据核对保留。实际鼠标拖动因桌面控制连接超时未自动验收，Intel 仅编译，未上机运行。
+
+
+## 菜单栏面板直接展示用量前三（2026-11-05）
+
+已完成源码实现：所选类别的有效用量前三项显示在今日接口总量下面，包括
+普通应用及完整列表已有的 Clash 来源。直接复用统一列表数据和行组件，不查
+新接口、不写数据库；只增加 compact 展示参数、限三项派生值及应用详情跳转。
+普通应用点击打开现有唯一偏好窗口中的对应详情；Clash 点击沿用来源说明。
+没有有效正用量时显示等待／暂无记录说明，不把未知用量显示为零或填充虚假排名。
+前三项仅作归因展示，不与接口总量相加，不混合两类网络账本。
+
+编译及 7 项相关既有测试通过，包含分类切换、代理来源一致性、真实 NSHostingView
+紧凑面板尺寸／长反馈不变形、原生偏好窗口复用和原应用列表渲染；日志
+`.artifacts/top-usage-menu-tests.log`。面板几何上限按新增三个固定紧凑行调整为
+680 pt，宽度仍为 360 pt，反馈前后尺寸相等的断言保留。git diff --check 通过。
+本任务未启动、暂停或生成采样流量，未改生产库／偏好，也未替换安装包；当前
+运行版需整体更新后才会显示前三项。并行会话正在改图表悬停提示，本轮不覆盖
+其文件或将其后续变更视为已经验收。
+
+## 2026-11-06 严格当天留存及本地旧数据清理
+
+- 用户明确要求仅留存当前自然日统计，替换原有未结算租约跨日保留例外。非当前日期的应用用量、接口日/分钟汇总、预警事件、通知去重和租约统一事务删除；源代码并行新增的 schema v7 应用分钟表也纳入此规则。应用身份、额度规则、两类全局配置和偏好保留。
+- SQLite 连接启用并回读 secure_delete=ON，清理后执行 WAL TRUNCATE，busy/失败可见并重试。新增 AgentRetention 独立 30 秒检查，暂停及无面板时继续运行，停机时取消；启动/恢复补清，跨日清掉内存归因和窗口。关机/休眠/服务未运行不能在午夜执行代码，不宣称任何存储介质或系统备份安全擦除。
+- 清理前正式库已经只有 2026-11-06 记录。已删除 20 份旧备份/诊断 SQLite、14 个边文件、9 个旧 DMG、37 个旧应用副本及 9 个观测文件；随后补清 2 份诊断用量快照、旧 Intel 产物和设置预览包。保留源码、迁移测试资料和通用编译缓存。安装过程的临时回退应用均已删除，没有为本次清理备份流量库。
+- 旧同 build 4 登记曾连续三次 XPC 超时。系统日志明确报告 OS_REASON_CODESIGNING / Launch Constraint Violation，静态签名验证通过。递增本地 build 至 5，定向注销旧副本并刷新安装版登记后，官方 SMAppService 重注册及双向 XPC 暂停自检成功；未隔离各恢复动作的独立影响。当前 /Applications/Flow Quota.app 为 0.1.0 build 5，原采集开关已恢复，启动暂停环境已还原。未发布远端版本。
+- 已部署的当天留存变更通过 77 项 Store + 41 项 Agent 测试；最终 Agent 停机顺序调整后再次通过 41 项。arm64 构建及严格签名检查通过。正式库 integrity_check=ok，foreign_key_check 无错误，核对时全部日期表仅含 2026-11-06 或为空，WAL 长度为 0；两类全局配置仍为 2 行。未产生热点验收流量，也未等待一个真实午夜做实测。
+- 项目 .artifacts 最终仅保留当前 arm64 应用产物，无 SQLite 流量备份、DMG 或旧回退应用。历史章节中提到的安装备份位置已在本次清理，属于过去验证记录，不表示那些备份仍存在。并行开发的新分时功能不属于上述已部署包验收。
+
+补充源码并行边界：后续全包重编译被并行图表改动引用不存在的 AppState.snapshotUsable 阻塞，未把该源码包安装或声称全包通过。使用临时 SwiftPM 包直接链接当前 Core/Store 源码及原始留存测试（无替代实现），独立验证 schema v7 应用分钟表与其余六表的严格当前日留存、时钟回退、配置保留、WAL 截断与重开；1 项集成测试通过。临时测试包已删除。此限制不影响已安装并完成 XPC 核对的 build 5。
+
+
+## 2026-11-06：用户可切换应用外观
+
+通用设置新增“外观”三态选择：跟随系统、浅色、深色。统一保存到本机 UserDefaults，应用启动时恢复；选择立即更新偏好设置与菜单栏面板使用的外观。AppKit 负责原生窗口外观，两个 SwiftUI 根视图分别观察同一偏好；切回跟随系统时撤销两层固定外观。未更改 macOS 系统设置、服务计量逻辑或数据库结构。官方 API 与 SDK 依据见 `ui-implementation.md` 的应用外观章节。
+
+两个定向测试通过：三种偏好可重新读取、非法值回退系统，以及 AppKit 深浅外观切换后能撤销覆盖。arm64 构建与严格签名检查通过，0.1.0 build 11 已替换安装，暂停 XPC 自检成功。原生界面已实际检查浅色、深色及恢复跟随系统，窗口标题栏与内容同时更新，导航保持在通用设置；结束时界面显示采集中，启动暂停环境与原值一致。本次未生成热点实验流量，未创建流量数据库备份，安装临时旧应用已移除。菜单栏面板接入统一偏好，未单独截图验收其三种外观，也未修改系统外观来验证系统自动切换；未进行 Intel 实机验收。
+
+
+## 2026-11-06：移除单应用筛选及空白分隔卡片
+
+按用户要求删除图表单应用选择器、相应状态及整行筛选卡片，时段查询固定覆盖当前类别全部应用；柱图与上传／下载饼图仍使用前十应用和“其他应用”，保留时间范围及网络类别选择。方向说明与信息图标移到柱图标题。同步更新 AGENTS.md；服务接口、数据库结构及计量行为不变。
+
+移除通用设置三条、应用详情两条独立分隔线，解决分隔线单独获得卡片样式产生空卡片的问题。保留实际卡片内部必要分隔，并为公共组件注明直接子项的卡片语义。
+
+arm64 编译、签名及 diff 空白检查通过；0.1.0 build 12 已安装，暂停 XPC 自检成功。原生界面确认通用设置没有横线空卡片，图表筛选行已删除，全部应用柱图与双饼图已加载。已将安装前开启的采集开关恢复开启，并还原临时启动环境。安装临时旧应用已删除。未生成实验网络流量，未新增数据库备份；本次低风险展示调整未新增专用测试。
+
+
+## 2026-11-06：图表按应用用量列表展示来源
+
+已将普通应用列表和图表的可见来源规则集中到 SystemProcessClassification.visibleInApplicationUsage，时段排名前排除精确身份确认的 Mihomo 代理内核，普通名称沿用列表分类显示名；隐藏流量不会混入其他。MihomoMinuteHistory 从与来源列表同一批连续连接增量生成当天、按类别隔离的仅内存分钟汇总；服务在普通应用排名前合并 Clash 来源，保留独立标识和标签，统一前十与其他，柱图、tooltip、双饼图共用结果。旧时段不回填；暂停保留，服务重启或日期变化清空。详细计量和容量边界见 ui-implementation.md 与 mihomo-api.md；schema仍v7，不新增表或网络请求。
+
+36项定向测试通过：Store6、Platform13、Core3、App7、Agent7，覆盖隐藏内核前的统一排名、其他分母、系统友好名、独立命名空间和旧IPC可选字段兼容、Clash连续观测与零量、分钟落点、分类／间断／暂停／日期回退／重启／容量、真实Agent时段查询及账本未变，以及三处图表来源一致。日志在 .artifacts/list-source-timeline/。arm64构建与严格签名检查通过，最终0.1.0 build17已安装；未验收Intel实机。
+
+首次build16三次重注册均XPC超时，系统日志显示OS_REASON_CODESIGNING / Launch Constraint Violation，launchd登记cdhash数组为空且EX_CONFIG78；静态签名检查通过。递增build17，定向注销已知暂存旧副本并再次执行原SMAppService注册流程后，自检pausedCheck=true、serviceStatus=1，两类图表查询及真实XPC均通过；未绕过系统安全校验，也未隔离构建号和重新登记各自的独立作用。证据 .artifacts/service-repair.Hy0Xf9/，失败过程 .artifacts/service-repair.ogy9iM/。两次安装临时旧应用均已删除。已还原启动暂停环境，并通过原生开关恢复安装前开启的采集。
+
+安装版原生图表已确认无verge-mihomo来源，包含ChatGPT（Clash）等列表式来源名称，双饼图正常加载；采用已有正常后台采样恢复状态，未为验收生成下载、上传、测速或做热点流量对照。YouTube／虎牙端到端业务归因只由模拟数据验证，未做真实业务实验。统计仍是可能重叠的展示来源归因，不是物理接口总量或直连量；安装前未观测的Clash分时无法还原。
+
+
+## 2026-11-06：饼图扇区连续相接
+
+共用 UsagePieChart 的 SectorMark angularInset 由1改为0，上传／下载饼图同时取消固定间距，避免极小扇区被间隔吞没后显示为白色缺口。扇区仍按原始实际 bytes 权重绘制，未人为放大、删除或改变合计，颜色及悬停选择沿用现有实现。AGENTS.md和UI说明同步记录。
+
+arm64编译、严格签名、diff空白检查及安装后的真实XPC暂停自检通过，已安装0.1.0 build18，证据 .artifacts/service-repair.nnfqeK/。启动临时环境已还原，原生界面已确认采集中，安装临时旧应用已删除。尝试查看饼图时前台页面多次变化并最终关闭窗口，未完成本次原生饼图最终截图验收，不将尝试视为视觉验收通过。此单参数展示调整未新增或重复运行单元测试；未生成实验网络流量或创建流量数据备份。

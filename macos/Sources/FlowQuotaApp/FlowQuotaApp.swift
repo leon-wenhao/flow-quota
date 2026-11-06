@@ -12,24 +12,29 @@ struct FlowQuotaApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            PanelView(state: state)
+            PanelView(state: state, openPreferences: { delegate.preferences.show($0) },
+                      openApplication: { delegate.preferences.showApplication($0) })
+                .appAppearance()
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 Image(nsImage: BrandIdentity.menuBarImage)
                     .opacity(state.interfaceUsageAvailable && !state.interfaceUsageIsPreserved ? 1 : 0.55)
-                if showMenuBarUsage { Text(state.menuBarUsageText) }
+                if showMenuBarUsage { Text(state.menuBarUsageText).monospacedDigit() }
             }
-            .accessibilityLabel("Flow Quota，今日计量接口总量\(state.menuBarUsageText)，\(state.interfaceUsageReason)")
+            .accessibilityLabel(state.menuBarUsageAccessibilityLabel)
             .help(state.interfaceMenuHelp)
         }
         .menuBarExtraStyle(.window)
         .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("偏好设置…") { delegate.preferences.show(.general) }
+                    .keyboardShortcut(",")
+            }
             CommandGroup(replacing: .appTermination) {
                 Button("退出并停止采集") { state.requestQuit() }
                     .keyboardShortcut("q")
             }
         }
-        Settings { PanelView(state: state, showSettings: true) }
     }
 }
 
@@ -38,24 +43,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let state = AppState()
     private lazy var monitor = AppMonitor(state: state)
     private let notificationDelegate = ReminderPresentationDelegate()
-    private var verificationWindow: NSWindow?
+    lazy var preferences = PreferencesWindowController(state: state)
     private var waitingForStop = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if DevelopmentServiceCheck.startIfRequested() { return }
+        AppAppearancePreference.selection().apply()
         if state.notifications.available {
             UNUserNotificationCenter.current().delegate = notificationDelegate
         }
         monitor.start()
         guard ProcessInfo.processInfo.arguments.contains("--window") else { return }
-        let window = NSWindow(contentViewController: NSHostingController(rootView: PanelView(state: state)))
-        window.title = "Flow Quota"
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.isReleasedWhenClosed = false
-        window.center()
-        window.makeKeyAndOrderFront(nil)
-        NSApplication.shared.activate(ignoringOtherApps: true)
-        verificationWindow = window
+        preferences.show()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

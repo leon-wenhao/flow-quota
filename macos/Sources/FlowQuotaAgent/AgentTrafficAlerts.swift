@@ -3,6 +3,12 @@ import FlowQuotaCore
 import FlowQuotaStore
 
 extension AgentRuntime {
+    func trafficAlertPolicyChanged(_ policy: TrafficAlertPolicy, category: TrafficCategory) throws {
+        trafficAlertWrites.retain(day: try LocalDay.key(for: Date(), in: .current), policy: policy, category: category)
+        // Editing an inactive category must not erase the active category's window.
+        if observeNetwork().state.trafficCategory == category { resetTrafficAlertWindows() }
+    }
+
     func resetTrafficAlertWindows() {
         trafficAlertEpoch &+= 1
         interfaceAlertWindow.reset()
@@ -15,11 +21,11 @@ extension AgentRuntime {
     /// errors; failure to save an earned event never invalidates measured buckets.
     func evaluateInterfaceAlerts(day: String, uploaded: Int64, downloaded: Int64,
                                  continuous: Bool, pathGeneration: UInt64, generation: UInt64,
-                                 now: Date, uptime: UInt64) async {
+                                 now: Date, uptime: UInt64, category: TrafficCategory = .metered) async {
         let epoch = trafficAlertEpoch
         guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
         let policy: TrafficAlertPolicy
-        do { policy = try await store.trafficAlertPolicy() }
+        do { policy = try await store.trafficAlertPolicy(category: category) }
         catch {
             guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
             interfaceAlertWindow.reset()
@@ -27,9 +33,9 @@ extension AgentRuntime {
             return
         }
         guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
-        trafficAlertWrites.retain(day: day, policy: policy)
+        trafficAlertWrites.retain(day: day, policy: policy, category: category)
         let dailyMessage = await evaluateDailyInterfaceAlert(day: day, policy: policy,
-            generation: generation, epoch: epoch, now: now)
+            generation: generation, epoch: epoch, now: now, category: category)
         guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
         var burstMessage: String
         do {
@@ -37,10 +43,10 @@ extension AgentRuntime {
                 let (bytes, overflow) = uploaded.addingReportingOverflow(downloaded)
                 guard !overflow, uploaded >= 0, downloaded >= 0 else { throw TrafficAlertError.overflow }
                 let totals = try interfaceAlertWindow.consume(["interface": bytes], uptime: uptime,
-                    scope: "\(day):\(pathGeneration):\(policy.version)",
+                    scope: "\(category.rawValue):\(day):\(pathGeneration):\(policy.version)",
                     windowSeconds: policy.windowSeconds, continuous: continuous)
                 if let usage = totals["interface"], usage.bytes >= limit {
-                    try trafficAlertWrites.stage(TrafficAlertEvent(day: day, kind: .interfaceBurst,
+                    try trafficAlertWrites.stage(TrafficAlertEvent(category: category, day: day, kind: .interfaceBurst,
                         sourceName: "本机计量接口", observedBytes: usage.bytes, thresholdBytes: limit,
                         windowSeconds: policy.windowSeconds, observedSeconds: usage.observedSeconds,
                         policyVersion: policy.version, occurredAt: now))
@@ -63,14 +69,17 @@ extension AgentRuntime {
     }
 
     private func evaluateDailyInterfaceAlert(day: String, policy: TrafficAlertPolicy,
-                                              generation: UInt64, epoch: UInt64, now: Date) async -> String {
-        guard let limit = policy.dailyInterfaceBytes else { return "每日接口预警已关闭。" }
+                                              generation: UInt64, epoch: UInt64, now: Date, category: TrafficCategory) async -> String {
+        guard let limit = policy.dailyInterfaceBytes else {
+            let failure = await flushTrafficAlertWrites(kind: .dailyInterface, generation: generation, epoch: epoch)
+            return "每日接口预警已关闭。" + (failure.map { " 已获得的预警尚未保存：" + $0 } ?? "")
+        }
         var message = "每日接口预警运行中。"
         do {
-            let usage = try await store.interfaceUsage(day: day)
+            let usage = try await store.interfaceUsage(day: day, category: category)
             guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return message }
             if let total = usage?.totalBytes, total >= limit {
-                try trafficAlertWrites.stage(TrafficAlertEvent(day: day, kind: .dailyInterface,
+                try trafficAlertWrites.stage(TrafficAlertEvent(category: category, day: day, kind: .dailyInterface,
                     sourceName: "本机计量接口", observedBytes: total, thresholdBytes: limit,
                     windowSeconds: 0, observedSeconds: 0, policyVersion: policy.version, occurredAt: now))
             }
@@ -86,11 +95,11 @@ extension AgentRuntime {
     func evaluateApplicationAlerts(_ increments: [UsageIncrement], day: String,
                                    continuous: Bool, resetSources: Set<String> = [],
                                    pathGeneration: UInt64, generation: UInt64,
-                                   now: Date, uptime: UInt64) async {
+                                   now: Date, uptime: UInt64, category: TrafficCategory = .metered) async {
         let epoch = trafficAlertEpoch
         guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
         let policy: TrafficAlertPolicy
-        do { policy = try await store.trafficAlertPolicy() }
+        do { policy = try await store.trafficAlertPolicy(category: category) }
         catch {
             guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
             applicationAlertWindow.reset()
@@ -98,10 +107,11 @@ extension AgentRuntime {
             return
         }
         guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
-        trafficAlertWrites.retain(day: day, policy: policy)
+        trafficAlertWrites.retain(day: day, policy: policy, category: category)
         guard let limit = policy.applicationBurstBytes else {
             applicationAlertWindow.reset()
-            applicationAlertMessage = "应用短时预警已关闭。"
+            let failure = await flushTrafficAlertWrites(kind: .applicationBurst, generation: generation, epoch: epoch)
+            applicationAlertMessage = "应用短时预警已关闭。" + (failure.map { " 已获得的预警尚未保存：" + $0 } ?? "")
             return
         }
         var message: String
@@ -117,16 +127,16 @@ extension AgentRuntime {
                 if sum > 0 { bytes[item.identity.key] = sum }
             }
             let totals = try applicationAlertWindow.consume(bytes, uptime: uptime,
-                scope: "\(day):\(pathGeneration):\(policy.version)", windowSeconds: policy.windowSeconds,
+                scope: "\(category.rawValue):\(day):\(pathGeneration):\(policy.version)", windowSeconds: policy.windowSeconds,
                 continuous: continuous, resetSources: resetSources)
             consumed = true
             let exceeded = totals.filter { $0.value.bytes >= limit }
             if !exceeded.isEmpty {
-                let rows = try await store.snapshot(day: day)
+                let rows = try await store.snapshot(day: day, category: category)
                 guard trafficAlertsAreCurrent(generation: generation, epoch: epoch) else { return }
                 let names = Dictionary(uniqueKeysWithValues: rows.map { ($0.identity.key, $0.identity.name) })
                 for (key, usage) in exceeded.sorted(by: { $0.key < $1.key }) {
-                    try trafficAlertWrites.stage(TrafficAlertEvent(day: day, kind: .applicationBurst,
+                    try trafficAlertWrites.stage(TrafficAlertEvent(category: category, day: day, kind: .applicationBurst,
                         sourceKey: key, sourceName: names[key] ?? key, observedBytes: usage.bytes,
                         thresholdBytes: limit, windowSeconds: policy.windowSeconds,
                         observedSeconds: usage.observedSeconds, policyVersion: policy.version, occurredAt: now))

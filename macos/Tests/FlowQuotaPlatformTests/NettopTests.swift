@@ -96,3 +96,29 @@ private func counter(_ key: String, _ upload: Int64, _ download: Int64,
         uptime: 7_000_000_000, countTraffic: true, capturedAt: start.addingTimeInterval(6))
     #expect(returnResult.increments.first?.uploadedBytes == 0)
 }
+
+@Test func minuteObservationKeysExcludeBaselinesGapsRollbacksAndUnknownProcessBirth() throws {
+    var accumulator = TrafficAccumulator()
+    let start = Date(timeIntervalSince1970: 10_000)
+    let initial = try accumulator.consume([counter("a", 100, 200)], scope: "ordinary", sequence: 1,
+        uptime: 1_000_000_000, countTraffic: true, capturedAt: start)
+    #expect(initial.observedSourceKeys.isEmpty)
+    let zero = try accumulator.consume([counter("a", 100, 200), counter("b", 1_000, 1_000, app: "unknown")],
+        scope: "ordinary", sequence: 2, uptime: 3_000_000_000, countTraffic: true, capturedAt: start.addingTimeInterval(2))
+    #expect(zero.observedSourceKeys == ["app:/Example.app"])
+    let reset = try accumulator.consume([counter("a", 1, 200)], scope: "ordinary", sequence: 3,
+        uptime: 5_000_000_000, countTraffic: true, capturedAt: start.addingTimeInterval(4))
+    #expect(reset.observedSourceKeys.isEmpty)
+    let gap = try accumulator.consume([counter("a", 999, 999)], scope: "ordinary", sequence: 4,
+        uptime: 20_000_000_000, countTraffic: true, capturedAt: start.addingTimeInterval(19))
+    #expect(gap.observedSourceKeys.isEmpty)
+    let path = try accumulator.consume([counter("a", 1_000, 1_000)], scope: "metered", sequence: 5,
+        uptime: 22_000_000_000, countTraffic: true, capturedAt: start.addingTimeInterval(21))
+    #expect(path.observedSourceKeys.isEmpty)
+    let fresh = ResolvedProcessCounter(processKey: "fresh", identity: AppIdentity(key: "fresh", name: "Fresh"),
+        uploadedBytes: 7, downloadedBytes: 9, startedAt: start.addingTimeInterval(22))
+    let birth = try accumulator.consume([fresh], scope: "metered", sequence: 6,
+        uptime: 24_000_000_000, countTraffic: true, capturedAt: start.addingTimeInterval(23))
+    #expect(birth.observedSourceKeys == ["fresh"])
+    #expect(birth.increments.first?.uploadedBytes == 7)
+}

@@ -55,7 +55,7 @@ struct TrafficAlertRetentionTests {
         let previous = fixture.alert()
         #expect(try await store.recordTrafficAlert(previous))
         let db = try SQLiteConnection(path: fixture.path)
-        try db.execute("INSERT INTO daily_interface_usage VALUES (?, 5, 8)", [.text(previous.day)])
+        try db.execute("INSERT INTO daily_interface_usage (day, uploaded_bytes, downloaded_bytes) VALUES (?, 5, 8)", [.text(previous.day)])
         fixture.clock.advance(86_400)
         let current = fixture.alert()
         #expect(try await store.recordTrafficAlert(current))

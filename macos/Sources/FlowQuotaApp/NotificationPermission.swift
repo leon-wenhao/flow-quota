@@ -83,24 +83,11 @@ struct NotificationPermissionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
+            HStack(spacing: 10) {
                 Label("本地通知", systemImage: "bell")
                 Spacer()
                 Text(permission.description).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            if permission.available {
-                HStack {
-                    if permission.canOfferRequest {
-                        Button("允许通知") { permission.request() }
-                            .settingsAction(prominent: true)
-                            .disabled(!permission.canRequest)
-                    }
-                    if permission.status == .denied {
-                        Label("请在系统设置的通知中开启。", systemImage: "bell.slash")
-                            .font(.caption).foregroundStyle(.orange).lineLimit(1)
-                            .help("请在系统设置的通知中开启 Flow Quota 通知。")
-                    }
-                    Spacer()
+                if permission.available {
                     Button { refreshRequest += 1 } label: {
                         ZStack {
                             if permission.requesting { ProgressView().controlSize(.mini) }
@@ -108,26 +95,25 @@ struct NotificationPermissionView: View {
                         }
                         .frame(width: 16, height: 16)
                     }
-                        .buttonStyle(.plain).foregroundStyle(.secondary)
-                        .accessibilityLabel("刷新通知授权状态").help("刷新通知授权状态")
-                        .disabled(permission.reading || permission.requesting)
+                    .buttonStyle(FlowQuotaIconButtonStyle())
+                    .accessibilityLabel("刷新通知授权状态").help("刷新通知授权状态")
+                    .disabled(permission.reading || permission.requesting)
                 }
-                .frame(height: 28)
-            } else {
+            }
+            if !permission.available {
                 Text("请运行完整 app 以使用系统通知。")
                     .font(.caption).foregroundStyle(.secondary)
+            } else if permission.canOfferRequest {
+                Button("允许通知") { permission.request() }
+                    .settingsAction(prominent: true).disabled(!permission.canRequest)
+            } else if permission.status == .denied || permission.alerts == .disabled {
+                Label("请在系统设置的通知中开启提醒。", systemImage: "bell.slash")
+                    .font(.caption).foregroundStyle(.orange)
             }
-            DisclosureGroup("通知详情") {
-                VStack(alignment: .leading, spacing: 6) {
-                    if permission.available {
-                        Text("提醒：\(NotificationPermission.settingDescription(permission.alerts)) · 声音：\(NotificationPermission.settingDescription(permission.sounds))")
-                    }
-                    Text("包括应用每日阈值、接口总量和短时流量预警。请保持主应用运行；关闭面板仍可投递。")
-                    Text("可在「系统设置 → 通知 → Flow Quota」调整。授权失败不影响采样，但待发提醒不会确认送达。系统接受请求不保证展示横幅，专注模式可能影响提醒。")
-                }
-                .font(.caption).foregroundStyle(.secondary).padding(.top, 4)
+            if let error = permission.errorMessage {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.caption).foregroundStyle(.red).textSelection(.enabled)
             }
-            .font(.caption).foregroundStyle(.secondary)
         }
         .task(id: refreshRequest) { await permission.refresh() }
     }

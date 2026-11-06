@@ -1,0 +1,8 @@
+Flow Quota 安装说明
+
+1. 将 Flow Quota.app 拖到右侧的 Applications 文件夹。
+2. 从 Applications 文件夹打开 Flow Quota。
+3. 首次打开如果 macOS 阻止启动，请打开“系统设置 → 隐私与安全性”，找到 Flow Quota 后点击“仍要打开”。
+4. 这是未使用 Developer ID 签名和公证的自用开发包，系统可能重复显示安全提示。
+
+应用会在本机采样和保存流量统计，不会自动阻断连接。

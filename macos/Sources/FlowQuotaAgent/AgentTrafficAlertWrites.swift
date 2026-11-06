@@ -7,16 +7,16 @@ struct TrafficAlertWriteBuffer: Sendable {
     private var events: [String: TrafficAlertEvent] = [:]
     var count: Int { events.count }
 
-    mutating func retain(day: String, policy: TrafficAlertPolicy) {
+    mutating func retain(day: String, policy: TrafficAlertPolicy, category: TrafficCategory = .metered) {
         events = events.filter {
-            $0.value.day == day && $0.value.policyVersion == policy.version
-                && policy.threshold(for: $0.value.kind) == $0.value.thresholdBytes
+            $0.value.day == day && ($0.value.category != category || ($0.value.policyVersion == policy.version
+                && policy.threshold(for: $0.value.kind) == $0.value.thresholdBytes))
         }
     }
 
     /// Two interface kinds + at most 128 app identities, one candidate per key.
     mutating func stage(_ event: TrafficAlertEvent) throws {
-        let key = event.kind.rawValue + ":" + event.sourceKey
+        let key = event.category.rawValue + ":" + event.kind.rawValue + ":" + event.sourceKey
         guard events[key] == nil else { return }
         if event.kind == .applicationBurst,
            events.values.filter({ $0.kind == .applicationBurst }).count >= 128 {
@@ -30,7 +30,7 @@ struct TrafficAlertWriteBuffer: Sendable {
     }
 
     mutating func remove(_ event: TrafficAlertEvent) {
-        let key = event.kind.rawValue + ":" + event.sourceKey
+        let key = event.category.rawValue + ":" + event.kind.rawValue + ":" + event.sourceKey
         // A suspended write must never erase a replacement from a newer policy.
         if events[key]?.id == event.id { events.removeValue(forKey: key) }
     }

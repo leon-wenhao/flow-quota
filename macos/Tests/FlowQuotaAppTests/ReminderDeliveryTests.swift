@@ -119,10 +119,10 @@ func reminder(kind: QuotaNotificationKind = .blocked) throws -> ReminderNotifica
     let request = SystemReminderScheduler.request(for: event)
     #expect(request.identifier == event.id)
     #expect(request.trigger == nil)
-    #expect(request.content.title == "已达到每日提醒阈值")
+    #expect(request.content.title == "热点／高成本 · 已达到每日提醒阈值")
     #expect(!request.content.body.contains("阻断"))
     #expect(request.content.body.contains("Test app"))
-    #expect(request.content.body.contains("高成本／手动热点观测用量"))
+    #expect(request.content.body.contains("热点／高成本观测用量"))
     #expect(request.content.body.contains("连接继续"))
-    #expect(SystemReminderScheduler.request(for: try reminder(kind: .warning)).content.title == "接近每日提醒阈值")
+    #expect(SystemReminderScheduler.request(for: try reminder(kind: .warning)).content.title == "热点／高成本 · 接近每日提醒阈值")
 }

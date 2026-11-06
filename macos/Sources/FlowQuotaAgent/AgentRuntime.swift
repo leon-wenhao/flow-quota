@@ -9,11 +9,15 @@ actor AgentRuntime {
     let network: NetworkObserver
     let observeNetwork: @Sendable () -> NetworkObservation
     var lastPrunedDay: String?
+    var retentionTask: Task<Void, Never>?
+    var retentionError: String?
     var monitoring: MonitoringStatus = .unavailable
     var sampledAt: Date?
+    var sampledAtByCategory: [TrafficCategory: Date] = [:]
+    var interfaceSampledCategory: TrafficCategory?
     var samplingStartedAt: Date?
     var monitoringMessage = "采集尚未启动。"
-    var coverageMessage = "仅累计服务运行期间的高成本网络或手动热点观测增量；不代表完整账单。"
+    var coverageMessage = "分别累计服务运行期间的热点／高成本与普通网络观测增量；不代表完整账单。"
     var accumulator = TrafficAccumulator()
     var sampler: NettopSampler?
     var samplingTask: Task<Void, Never>?
@@ -31,14 +35,20 @@ actor AgentRuntime {
     var interfaceTask: Task<Void, Never>?
     var interfaceSampledAt: Date?
     var interfaceMessage = "接口总量尚未就绪；旧应用合计不作为接口历史。"
+    let mihomoController: MihomoControllerClient
+    var mihomoTask: Task<Void, Never>?
+    var mihomoAccumulator = MihomoProxyAccumulator()
+    var mihomoProxy = MihomoProxySnapshot(status: .paused, message: "Mihomo API 观测尚未启动。")
 
     init(store: QuotaStore,
          interfaceReader: any InterfaceCounterReading = SystemInterfaceTrafficCounter(),
          networkObservation: (@Sendable () -> NetworkObservation)? = nil,
-         samplingTime: @escaping @Sendable () -> UInt64 = { SamplingClock.nowNanoseconds }) {
+         samplingTime: @escaping @Sendable () -> UInt64 = { SamplingClock.nowNanoseconds },
+         mihomoController: MihomoControllerClient = MihomoControllerClient()) {
         self.store = store
         self.interfaceReader = interfaceReader
         self.samplingTime = samplingTime
+        self.mihomoController = mihomoController
         let network = NetworkObserver()
         self.network = network
         observeNetwork = networkObservation ?? { network.snapshot() }
@@ -46,6 +56,15 @@ actor AgentRuntime {
 
     func handle(_ request: AgentRequest) async throws -> AgentReply {
         switch request {
+        case .applicationTimeline(let query):
+            try await pruneIfNeeded(day: try LocalDay.key(for: Date(), in: .current))
+            let rows = try await store.applicationTimelineRows(query)
+            guard query.day == (try LocalDay.key(for: Date(), in: .current)) else {
+                throw PlatformError.unavailable("应用分时查询日期已变化，请刷新。")
+            }
+            let clash = try mihomoAccumulator.timelineRows(query)
+            return .applicationTimeline(try ApplicationTimelineGrouping.make(query: query, rows: rows + clash,
+                clashNotice: mihomoAccumulator.timelineNotice(for: query.category)))
         case .snapshot:
             return .snapshot(try await snapshot())
         case .trafficAlertHistory(let day, let offset):
@@ -53,9 +72,21 @@ actor AgentRuntime {
                 throw TrafficAlertError.invalidEvent
             }
             return .trafficAlertHistory(try await store.trafficAlertEvents(day: day, limit: 32, offset: offset))
+        case .categoryTrafficAlertHistory(let category, let day, let offset):
+            guard day == (try LocalDay.key(for: Date(), in: .current)), (0...256).contains(offset) else {
+                throw TrafficAlertError.invalidEvent
+            }
+            return .trafficAlertHistory(try await store.trafficAlertEvents(day: day, limit: 32, offset: offset, category: category))
+        case .saveCategoryTrafficAlertPolicy(let category, let policy):
+            try await store.saveTrafficAlertPolicy(policy, category: category)
+            try trafficAlertPolicyChanged(policy, category: category)
+            return .acknowledged
+        case .saveCategoryRule(let category, let appKey, let rule):
+            try await store.saveRule(appKey: appKey, rule: rule, category: category)
+            return .acknowledged
         case .saveTrafficAlertPolicy(let policy):
             try await store.saveTrafficAlertPolicy(policy)
-            resetTrafficAlertWindows()
+            try trafficAlertPolicyChanged(policy, category: .metered)
             return .acknowledged
         case .acknowledgeTrafficAlert(let id):
             let day = try LocalDay.key(for: Date(), in: .current)
@@ -81,17 +112,18 @@ actor AgentRuntime {
             guard key.identity.day == day else {
                 throw PlatformError.unavailable("通知日期已变化，旧提醒不再确认。")
             }
-            let rows = try await store.snapshot(day: day)
+            let rows = try await store.snapshot(day: day, category: key.category)
             guard let row = rows.first(where: { $0.identity.key == key.identity.appKey }),
                   let rule = row.rule, rule.version == key.identity.ruleVersion else {
                 throw PlatformError.unavailable("提醒规则已变化，请重新读取状态。")
             }
-            let decision = try QuotaEvaluator.evaluate(rule: rule, usage: row.usage, network: .hotspot)
+            let decision = try QuotaEvaluator.evaluate(rule: rule, usage: row.usage,
+                network: key.category == .metered ? .hotspot : .ordinary)
             let eligible = key.kind == .blocked ? decision.status == .blocked
                 : decision.status == .warning || decision.status == .blocked
             guard eligible else { throw PlatformError.unavailable("尚未达到对应提醒阈值。") }
             _ = try await store.claimNotification(appKey: key.identity.appKey, day: day,
-                                                  kind: key.kind, ruleVersion: key.identity.ruleVersion)
+                                                  kind: key.kind, ruleVersion: key.identity.ruleVersion, category: key.category)
             return .acknowledged
         case .stopProtection:
             await stopMonitoring()
@@ -99,55 +131,4 @@ actor AgentRuntime {
         }
     }
 
-    func snapshot() async throws -> AgentSnapshot {
-        let now = Date()
-        let path = observeNetwork()
-        let day = try LocalDay.key(for: now, in: .current)
-        if day != lastPrunedDay {
-            try await store.prunePreviousDays()
-            lastPrunedDay = day
-        }
-        let rows = try await store.snapshot(day: day)
-        let alertPolicy = try await store.trafficAlertPolicy()
-        let alertEvents = try await store.trafficAlertEvents(day: day)
-        let alertPending = monitoring == .paused ? [] : alertEvents.filter {
-            $0.scheduledAt == nil && $0.policyVersion == alertPolicy.version
-                && alertPolicy.threshold(for: $0.kind) != nil
-        }
-        let delivered = try await store.deliveredNotifications(day: day)
-        var notices: [ReminderNotification] = []
-        // A new day has no known observation until its own baseline is captured.
-        let currentSample = sampledAt.flatMap { (try? LocalDay.key(for: $0, in: .current)) == day ? $0 : nil }
-        // The stored counters cover automatic high-cost paths and manual hotspots.
-        // A later path switch must not suppress
-        // an already-earned reminder that the UI has not yet scheduled.
-        if monitoring == .collecting, currentSample != nil {
-            for row in rows {
-                guard let rule = row.rule, let limit = rule.limitBytes else { continue }
-                let identity = try QuotaIdentity(appKey: row.identity.key, day: day, ruleVersion: rule.version)
-                let transition = try QuotaTransitions.evaluate(identity: identity, rule: rule,
-                    usage: row.usage, network: .hotspot, delivered: delivered)
-                if let key = transition.notification {
-                    notices.append(ReminderNotification(key: key, appName: row.identity.name,
-                                                        usedBytes: row.usage.totalBytes, limitBytes: limit))
-                }
-            }
-        }
-        let stale = (sampledAt ?? samplingStartedAt).map { now.timeIntervalSince($0) > 12 } ?? false
-        let active = monitoring == .collecting || monitoring == .unavailable
-        let status: MonitoringStatus = active && stale ? .failed : monitoring
-        return AgentSnapshot(generatedAt: now, network: path.state, readiness: .notInstalled,
-            applications: rows, message: (stale && active ? "采样超时，当前用量不再更新。" : monitoringMessage)
-                + " " + path.message,
-            monitoring: status,
-            samplingEnabled: monitoring != .paused && (samplingTask != nil || interfaceTask != nil),
-            sampledAt: currentSample, notifications: status == .collecting ? notices : [],
-            coverageMessage: coverageMessage,
-            interfaceUsage: try await store.interfaceUsage(day: day),
-            interfaceSampledAt: interfaceSampledAt.flatMap {
-                (try? LocalDay.key(for: $0, in: .current)) == day ? $0 : nil
-            }, interfaceMessage: interfaceStatusMessage(at: now), trafficAlertPolicy: alertPolicy,
-            trafficAlertEvents: Array(alertEvents.prefix(64)), pendingTrafficAlerts: Array(alertPending.prefix(16)),
-            trafficAlertMessage: interfaceAlertMessage + " " + applicationAlertMessage)
-    }
 }

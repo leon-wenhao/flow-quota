@@ -25,12 +25,12 @@ Official references (consulted 2026-11-04):
 `PRAGMA user_version` is the sole schema version; no redundant migration table.
 Version 1 is the initial ledger (first four tables below); version 2 adds leases
 and their liability index; version 3 adds the independent daily interface meter.
-Fresh databases run all three migrations. Upgrades from v1/v2 create an empty
+Fresh databases run all migrations through the current version (v6). Upgrades from v1/v2 create an empty
 interface table: application usage is never copied or summed into interface usage.
 Each open acquires BEGIN IMMEDIATE before reading the version; all pending DDL, foreign-key checks,
 and version updates commit together. A failing step rolls back all of them.
-Unknown future versions fail without rewriting data. Never drop/rebuild a table
-or delete the file as an upgrade strategy. Tests seed a real version-1 database,
+Unknown future versions fail without rewriting data. Never delete/recreate data as automatic upgrade recovery. The explicit, atomic
+primary-key replacement for schema v5 is documented below. Tests seed a real version-1 database,
 including a deliberately conflicting version-2 index to exercise DDL rollback
 after the new lease table has already been created.
 
@@ -69,7 +69,7 @@ with deinit as a fallback. Errors propagate with SQLite extended result codes;
 rollback failures are reported with the original error.
 
 Connection setup enables and reads back foreign_keys=ON, journal_mode=WAL,
-synchronous=FULL, busy_timeout=1000 ms, wal_autocheckpoint=1000 pages. FULL is chosen
+synchronous=FULL, secure_delete=ON, busy_timeout=1000 ms, wal_autocheckpoint=1000 pages. FULL is chosen
 because granting a lease before durable commit would reissue consumed bytes on
 power failure. WAL permits readers without blocking the writer; no separate read
 pool is needed. Default automatic PASSIVE checkpoints run at the configured page
@@ -118,23 +118,35 @@ unknown outstanding consumption as measured zero.
 
 ## Retention, reads, and performance
 
-prunePreviousDays() atomically removes prior-day notification receipts and settled
-leases. It removes prior-day usage only where no outstanding lease exists for the
-same app/day. ALL outstanding leases remain, including expired/prior-day leases;
-cleanup never assumes an old consumer stopped or reclaims an uncertain grant.
-The associated actual counters remain too, preserving the entire conservative
-balance across reopen. This safety evidence is an exception to normal current-day
-retention, not a historical reporting feature; without authenticated reconciliation,
-it can accumulate. Applications/rules, today's rows, and future-dated evidence remain.
+As of the 2026-11-06 user requirement, prunePreviousDays() atomically deletes
+all non-current-local-day rows in traffic_alert_events, interface_usage_minutes,
+application_usage_minutes (schema v7),
+daily_interface_usage, budget_leases, notification_receipts and daily_usage.
+This includes unsettled legacy leases and future-dated rows after clock rollback.
+Rules, application identities, alert settings and UI preferences persist. This
+explicitly replaces the earlier exception preserving old unresolved liabilities;
+the current service is reminder-only. A future blocking engine must design and
+validate its own liability retention before activation.
 
-The service calls cleanup on startup/day change after invalidating prior-day grants;
-there is no automatic clock-independent expiry reset. Keeping present/future rows
-prevents erasing a revisited retained day. If the clock moves backward beyond
-already-pruned resolved days, the service must treat its clock as untrusted and
-suspend admission; the store cannot reconstruct deleted summaries. V1 is not an
-anti-tampering system and does not persist a separate trusted-clock watermark.
-On uninstall, stop protection and close the store before the user's data deletion
-choice, including SQLite -wal/-shm sidecars. No deletion API silently removes rules.
+Every connection enables and verifies secure_delete=ON. After the purge transaction,
+wal_checkpoint(TRUNCATE) removes old WAL frames; busy/errors propagate and are
+retried rather than being marked complete. No migration or new business table is
+needed. This is live-file cleanup, not a secure-erasure claim for filesystem/system
+backups. Official SQLite PRAGMA documentation defines both settings.
+
+The service purges before startup sampling and has a cancellable 30-second date
+check independent of sampling/UI polling. Normal snapshot/sample calls also check
+the date. Pausing collection therefore does not disable maintenance. On date change,
+in-memory source attribution and short windows are reset. Failures are visible in
+the snapshot coverage message and retried. A stopped/asleep computer cannot execute
+cleanup: overdue deletion occurs when the service resumes or starts. Backward date
+changes also purge everything outside the newly current day; no history is restored.
+Development database copies and old installation artifacts are explicitly cleaned,
+not included in the live database's daily pruning. Install rollback app copies are
+deleted after a successful repair. No automatic traffic-data backup is created.
+
+On uninstall, stop the service and close the store before deleting the database and
+its -wal/-shm sidecars. Cleanup never removes user rules or settings.
 
 The usage PK supports app+day lookups. Notification and lease PKs support exact
 retry/dedup lookups. A partial lease index `(app_key, day) WHERE uploaded_bytes IS
@@ -426,3 +438,165 @@ constraint, cooldown, thresholds, and persistence/version semantics are unchange
 已达到阈值但尚未入库的事件在 Agent 内存中有界重试：每个类别／应用身份保留最早一条，两个接口类别加至多 128 个应用来源，共最多 130 项，固定 UUID、原用量和发生时间。后续提交仍经过既有 `recordTrafficAlert` 事务与日期、版本、冷却和每日容量检查；提交返回已抑制也可移除候选，异常则保留。旧异步写入按 UUID 移除，不能删除较新版本的同来源候选。当前日／配置变化清理不合格候选；服务退出无法保留未入库候选，这是持久化前的故障边界。
 
 无需新实体、采样流水或重试表；`traffic_alert_events` 仍是唯一持久化事件／通知待发队列。每日事件失败与短时检查分开，应用事件失败按来源隔离，不为了通过事务而改变现有约束。重试并不重新写入流量用量，也不延长滚动窗口或把间断期间算作连续观测。
+
+## Schema v5: two network accounting categories (2026-11-05)
+
+The service stores `metered` (automatic expensive / manual hotspot) and `ordinary`
+(available ordinary Wi-Fi / wired) independently in the same SQLite file and
+single QuotaStore actor. Unknown paths have no category and cannot add bytes.
+No SSID, network contents, sample history, or new historical reporting is stored.
+
+| Entity | v5 key / scope |
+| --- | --- |
+| applications | unchanged shared stable identity / display name |
+| quota_rules | PRIMARY KEY(app_key, category); independent version / nullable limit per category |
+| daily_usage | PRIMARY KEY(app_key, day, category); same integer byte bounds and FK |
+| notification_receipts | PRIMARY KEY(app_key, day, kind, rule_version, category) |
+| daily_interface_usage | PRIMARY KEY(day, category); independent of application attribution |
+| traffic_alert_settings | one row per category; category TEXT PK instead of singleton id |
+| traffic_alert_events | UUID PK retained; category NOT NULL added; cooldown lookup includes category |
+| budget_leases | unchanged legacy future enforcement ledger; explicitly metered only |
+
+`category TEXT NOT NULL DEFAULT 'metered' CHECK(category IN ('metered','ordinary'))`
+applies to category fields. No application FK changes. Existing byte, day,
+version, name, time, source and policy constraints remain. Existing lease APIs
+operate only on metered usage/rules, so ordinary traffic cannot consume a legacy
+lease budget. Ordinary observed increments still receive checked integer overflow
+validation. Category participates in every relevant read, upsert, version check,
+notification key, retry key, cooldown and pending-queue policy lookup.
+
+Migration runs within the existing BEGIN IMMEDIATE transaction, before service
+startup. Composite primary keys require explicit, data-preserving table replacement:
+create new constrained child table, INSERT SELECT all legacy rows with metered
+category, drop old child and rename replacement. These tables have no inbound
+foreign keys; applications and budget_leases remain untouched, foreign_keys stays
+ON. This planned versioned migration replaces the earlier blanket ban on table
+replacement; automatic recovery by deleting data/recreating the database remains
+forbidden. Any constraint/DDL/foreign_key_check failure rolls back all changes,
+including user_version. No summing, identity rewriting or invented ordinary rows.
+Events use ADD COLUMN with a metered default; replace the old cooldown index with
+(day, category, kind, source_key, policy_version, occurred_at_ms). Other composite
+primary keys serve category-scoped point reads/upserts; current-day bounded event
+paging also uses the day/category index prefix. Query-plan tests check index use.
+
+Copy the existing alert settings verbatim to metered, including disabled thresholds
+and saved window/version. Initialize ordinary settings with all three thresholds
+NULL, 180-second window, 600-second cooldown, version 1. No ordinary application
+rules exist initially (reminders disabled). Metered fresh-install defaults remain
+1 GB/day and 200 MB per 3-minute burst. User edits are never overwritten on reopen.
+
+The 256-event cap remains shared across both categories for the current day.
+Retention deletes previous-day usage, interface totals, receipts and events for
+both categories; only metered usage with unresolved legacy leases is retained.
+No transaction contains an await. Both category summaries are queried on the
+existing 1–5 second UI cadence, interface/app writes remain approximately 2 seconds.
+Path/category changes reset baselines and rolling windows; committed bytes stay
+in their original category. Queued earned events retain their category and can
+be delivered after a path change, subject to that category's current policy.
+
+Official reference: SQLite ALTER TABLE, section “Making Other Kinds Of Table
+Schema Changes”, https://www.sqlite.org/lang_altertable.html. The child tables
+here have no inbound foreign keys, so foreign_keys need not be disabled; migration
+and FK validation remain atomic. Validation uses temporary v4 databases, injected
+migration failures, simulated counts, restart/day/category isolation tests, and
+compilation; no generated network traffic.
+
+
+## Schema v6 — current-day interface minute summaries (2026-11-05)
+
+User-requested time charts introduce `interface_usage_minutes`, a durable minute
+summary entity, separate from daily totals and application attribution. Design is
+recorded before implementation. The UI reads it through category snapshots only.
+
+| Field | Type / constraint / meaning |
+| --- | --- |
+| day | TEXT NOT NULL, existing Gregorian StoreDay CHECK; local day at observation |
+| category | TEXT NOT NULL CHECK IN ('metered', 'ordinary') |
+| minute_start_ms | INTEGER NOT NULL > 0, divisible by 60000; absolute UTC epoch millisecond minute |
+| uploaded_bytes, downloaded_bytes | INTEGER NOT NULL >= 0, sum <= Int64.max; observed bytes |
+| sample_count | INTEGER NOT NULL > 0; number of valid continuous deltas, including measured zero |
+
+Primary key `(day, category, minute_start_ms)` supports both category-day ordered
+reads and day cleanup; no additional index or foreign key is needed. There is no
+stored total or application identity. Normal local days contain 1440 rows per
+category (1500 on a 25-hour DST day). Only the current local day is retained;
+startup/rollover cleanup deletes previous-day minute rows in the existing cleanup
+transaction. UTC minute keys keep repeated local hours distinct.
+
+Only `.measured` interface deltas receive an observation timestamp. Baselines,
+unknown paths, counter resets, restart, pause, path/day changes and gaps over eight
+seconds add no minute row. A cross-minute delta belongs to its ending minute;
+there is no interpolation or recovery of unknown traffic. Sample counts express
+partial observation, never a guarantee of full-minute coverage. Missing rows mean
+unknown/unobserved; measured zero has a row with positive sample_count.
+
+`recordSample` commits the minute increment and independent daily interface total
+in the same existing BEGIN IMMEDIATE transaction, with bound parameters and checked
+Int64 addition. It validates the observation's local day against the batch day.
+Any validation/overflow/SQL failure rolls back the whole batch. Writes remain on
+the existing roughly two-second interface cadence, one extra minute UPSERT per
+measured sample; no per-packet writes, new connection, or durability downgrade.
+Category snapshots read this bounded current-day summary on the existing UI poll.
+
+Migration 5 -> 6 only CREATEs the empty new table and advances user_version inside
+the migration transaction. Existing counters, policies, receipts and category
+keys are untouched. Older daily totals cannot reconstruct time distribution;
+upgraded charts begin at the first valid new observation. Migration failure rolls
+back DDL/version. Tests cover preservation, rollback, FK/integrity, restart,
+category separation, invalid dates, zero-vs-unknown, overflow atomicity, cleanup
+and the ordered query plan using the composite primary-key index.
+
+Official basis: SQLite CREATE TABLE / CHECK / composite primary keys
+(https://sqlite.org/lang_createtable.html), transactions
+(https://sqlite.org/lang_transaction.html), and EXPLAIN QUERY PLAN
+(https://sqlite.org/eqp.html); system SQLite, Swift tools 6.0 / macOS 14 minimum.
+
+## Schema v7 — application minute attribution (2026-11-06)
+
+User requirement: compare applications within a selected current-day interval,
+with separate stacked upload/download bars and two directional application pies.
+Daily application totals and interface minutes cannot reconstruct that history.
+Add `application_usage_minutes`, one observed app/minute/category aggregate:
+`day TEXT`, `category TEXT` (`metered`/`ordinary`), `minute_start_ms INTEGER`
+(positive UTC epoch milliseconds divisible by 60000), `app_key TEXT` FK to
+applications, uploaded/downloaded INTEGER bytes >=0 (combined <= Int64.max),
+`sample_count INTEGER >0`. All columns NOT NULL; PK(day, category,
+minute_start_ms, app_key) supports category/range reads and current-day cleanup.
+No extra index: app filters use the same day/category/minute range and a residual
+identity condition. Confirm with EXPLAIN QUERY PLAN and representative fixtures.
+
+Only sources with a measured delta (including a measured zero) participate;
+startup/restart, path/day changes, >8 s gaps, unknown preexisting processes and
+counter rollback establish baselines, never fake zero observations. A process
+proven born within a continuous interval keeps existing first-burst semantics.
+Minute attribution uses the sample end, without interpolation, and commits in
+`recordSample`'s existing transaction with daily app totals. Per-app minute
+updates use checked integer addition; failure rolls back the entire batch.
+Writes retain the existing nettop cadence; no per-packet writes or second writer.
+
+The service exposes a bounded on-demand interval query instead of attaching all
+app minutes to every snapshot. Only current local day, minute-aligned range
+within that day (up to 25 h for DST), and optional canonical app identity are
+accepted. SQL groups by 5 min (<=1 h) or 30 min. Display the top ten app identities
+by interval total, ties by key, plus an explicit remaining-app aggregate. An
+individual-app query never folds that identity into remaining apps. Returned
+rows are bounded by 50 buckets * 11 sources (a 25 h local day); arithmetic or IPC
+size errors remain visible, never silently truncate totals. No sampled minute
+means unknown, distinct from a positive sample_count with zero bytes. App sums
+can overlap and are not interface totals; Clash ephemeral sources stay outside
+this durable nettop view. Upload/download pies use the same interval and source
+colors; interface totals remain independently available in overview/details.
+
+Migration 6→7 creates only this empty table transactionally and preserves existing
+rows/settings, without backfilling prior daily totals. Normal current-day pruning
+must include the new table, including future/old labels after clock changes.
+No historical retention, network content or sampling log is introduced. Existing
+secure_delete/WAL cleanup policy applies. UI switches/range requests cancel stale
+fetches and keep same-query chart content during polling; results from another
+category/range/day never appear under the current selection.
+
+2026-11-06 clarification: paired columns retain absolute byte heights; no percent
+normalization. Hover lists each displayed source for that bucket and direction,
+including measured zero, preserving the remaining-app sum. Ten named sources
+plus remaining keeps at most 550 rows in one bounded reply; IPC oversize remains
+a visible error. No schema or additional persistence change is required.

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct UpdateSettingsView: View {
     let state: AppState
+    @State private var showInstallInstructions = false
 
     var body: some View {
         SettingsSection(title: "软件更新") {
@@ -18,7 +19,7 @@ struct UpdateSettingsView: View {
                         state.checkForUpdates()
                     }
                     .settingsAction()
-                    .disabled(state.updateChecking)
+                    .disabled(state.updateChecking || state.busy)
                 }
                 Text(state.updateState.message)
                     .font(.caption)
@@ -30,18 +31,35 @@ struct UpdateSettingsView: View {
                 }
                 if case .available(let release) = state.updateState {
                     HStack(spacing: 10) {
-                        Button("打开下载页") { NSWorkspace.shared.open(release.downloadURL) }
+                        if release.package != nil {
+                            Button("下载并安装") {
+                                state.downloadAndInstall(release)
+                            }
                             .settingsAction()
+                            .disabled(state.busy)
+                        } else {
+                            Button("打开下载页") { NSWorkspace.shared.open(release.downloadURL) }
+                                .settingsAction()
+                        }
                         if let notesURL = release.releaseNotesURL {
                             Button("查看更新说明") { NSWorkspace.shared.open(notesURL) }
                                 .settingsAction()
                         }
                     }
                 }
-                Text("当前版本只检查并打开下载页面，不会自动替换应用。")
-                    .font(.caption).foregroundStyle(.secondary)
             }
             .padding(.top, 2)
+            .onChange(of: state.downloadedUpdateURL) { _, newValue in
+                if newValue != nil { showInstallInstructions = true }
+            }
+            .alert("更新包已打开", isPresented: $showInstallInstructions) {
+                Button("打开 Applications 文件夹") {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: "/Applications", isDirectory: true))
+                }
+                Button("知道了", role: .cancel) {}
+            } message: {
+                Text("请将 Flow Quota.app 拖到右侧的 Applications 文件夹，然后从 Applications 打开。首次打开若被系统拦截，请到系统设置 → 隐私与安全性中选择“仍要打开”。")
+            }
         }
     }
 

@@ -70,6 +70,8 @@ with path.open(encoding="utf-8") as handle:
     manifest = json.load(handle)
 manifest["version"] = os.environ["VERSION"]
 manifest["build"] = int(os.environ["BUILD"])
+manifest.pop("packages", None)
+manifest["publishedAt"] = None
 for key, env_name in (("releaseNotesURL", "NOTES_URL"),
                       ("downloadURL", "DOWNLOAD_URL")):
     value = os.environ[env_name]

@@ -61,6 +61,15 @@ import Testing
         let usage = try #require(try await store.snapshot(day: day).first { $0.identity.key == ownIdentity.key })
         let events = try await store.trafficAlertEvents(day: day)
         #expect(usage.usage.totalBytes == 250_000_000)
+        let query = ApplicationTimelineQuery(day: day, category: .metered,
+            start: Calendar.current.startOfDay(for: Date()),
+            end: Date(timeIntervalSince1970: ceil(Date().timeIntervalSince1970 / 60) * 60), appKey: ownIdentity.key)
+        guard case .applicationTimeline(let timeline) = try await runtime.handle(.applicationTimeline(query)) else {
+            Issue.record("Expected bounded chart response from the real runtime"); return
+        }
+        #expect(timeline.buckets.reduce(0) { $0 + $1.downloadedBytes } == 250_000_000)
+        #expect(timeline.buckets.reduce(0) { $0 + $1.sampleCount } == 2)
+
         #expect(events.contains { $0.kind == .applicationBurst && $0.sourceKey == ownIdentity.key },
                 "An unrelated counter reset must not discard a fully observed 250 MB application burst")
     }

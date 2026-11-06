@@ -22,6 +22,9 @@ import Testing
     var enabledCount = 0
     var stoppedCount = 0
     var marked: Bool?
+    var ruleCategories: [TrafficCategory] = []
+    var policyCategories: [TrafficCategory] = []
+    var historyCategories: [TrafficCategory] = []
 
     init(readiness: ProtectionReadiness = .notInstalled, date: Date = Date(),
          applications: [ApplicationSnapshot] = [], monitoring: MonitoringStatus = .unavailable,
@@ -44,6 +47,22 @@ import Testing
     func saveRule(appKey: String, rule: QuotaRule) async throws {
         if saveFails { throw PlatformError.unavailable("test save rejected") }
         savedRules += 1
+    }
+    func saveRule(appKey: String, rule: QuotaRule, category: TrafficCategory) async throws {
+        ruleCategories.append(category)
+        try await saveRule(appKey: appKey, rule: rule)
+    }
+    func saveTrafficAlertPolicy(_ policy: TrafficAlertPolicy, category: TrafficCategory) async throws {
+        policyCategories.append(category)
+        try await saveTrafficAlertPolicy(policy)
+    }
+    func fetchTrafficAlertHistory(day: String, offset: Int, category: TrafficCategory) async throws -> [TrafficAlertEvent] {
+        historyCategories.append(category)
+        if let data = state.usage(for: category) {
+            historyOffsets.append(offset)
+            return Array(data.trafficAlertEvents.filter { $0.day == day }.dropFirst(offset).prefix(32))
+        }
+        return try await fetchTrafficAlertHistory(day: day, offset: offset)
     }
     func setHotspotOverride(_ marked: Bool) async throws { self.marked = marked }
     func acknowledgeNotification(_ key: QuotaNotificationKey) async throws {

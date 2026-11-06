@@ -27,7 +27,7 @@ public struct NetworkObservation: Sendable {
     }
 }
 
-/// Cost determines automatic metering, not hotspot identity. Manual marks expire
+/// Cost selects the accounting category, not hotspot identity. Manual marks expire
 /// on every path update, including a new connection using the same interface.
 public final class NetworkObserver: @unchecked Sendable {
     private let monitor = NWPathMonitor()
@@ -104,7 +104,7 @@ struct NetworkTrackingState {
                 interfaceIndexes: interfaceIndexes)
         } else {
             automatic = NetworkObservation(state: .ordinary,
-                message: "当前为普通网络，不自动累计；若实际连接热点，可手动标记。",
+                message: "当前为普通网络，独立累计用量；若实际连接热点，可手动修正分类。",
                 interfaceIndexes: interfaceIndexes)
         }
     }

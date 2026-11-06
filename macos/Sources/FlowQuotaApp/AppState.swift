@@ -9,6 +9,7 @@ final class AppState {
     let notifications = NotificationPermission()
     let reminderDelivery: ReminderDelivery
     let trafficAlertDelivery: TrafficAlertDelivery
+    var selectedTrafficCategory: TrafficCategory = .metered
     private(set) var snapshot: AgentSnapshot?
     private(set) var connected = false
     private(set) var everConnected = false
@@ -21,6 +22,7 @@ final class AppState {
     private(set) var quitRequested = false
     private(set) var updateState: UpdateCheckState = .idle
     private(set) var lastUpdateCheckAt: Date?
+    private(set) var downloadedUpdateURL: URL?
     @ObservationIgnored let client: any AgentServiceClient
     @ObservationIgnored private var actionTask: Task<Void, Never>?
     @ObservationIgnored private var updateTask: Task<Void, Never>?
@@ -41,7 +43,7 @@ final class AppState {
         return "\(version.marketingString)（build \(version.build)）"
     }
     var canConfigureNetwork: Bool { connected && snapshotIsCurrent && !busy && !quitRequested }
-    var canEdit: Bool { canConfigureNetwork }
+    var canEdit: Bool { canConfigureNetwork && (selectedTrafficCategory == .metered || categorySnapshot != nil) }
     var snapshotIsCurrent: Bool {
         guard let snapshot, !snapshotExpired else { return false }
         let age = Date().timeIntervalSince(snapshot.generatedAt)
@@ -66,18 +68,21 @@ final class AppState {
     var networkDetail: String {
         switch currentNetwork {
         case .expensive:
-            return "系统报告高成本网络；这不表示已确认手机热点、设备或运营商。采集期间自动计量，与手动热点共用每日提醒预算。"
+            return "系统报告高成本网络；这不表示已确认手机热点、设备或运营商。计入热点／高成本类，统计与普通网络分开。"
         case .hotspot:
-            return "服务已确认手动标记；此连接的观测增量与高成本网络共用每日提醒预算。"
+            return "服务已确认手动标记；此连接计入热点／高成本类，统计与普通网络分开。"
         case .ordinary:
-            return "当前连接不自动计量；如需计入每日提醒预算，可手动标记为热点。"
+            return "当前连接计入普通网络类，独立统计；提醒默认关闭，可单独设置。如实际为手机热点，可手动修正分类。"
         case .unknown, nil:
-            return "当前网络状态不可用；可在服务允许时手动标记为热点，计入同一每日提醒预算。"
+            return "当前网络状态不可用，不分配新增流量；已保存的两类今日累计保留。"
         }
     }
-    var usageAvailable: Bool {
-        guard connected, snapshotIsCurrent, let snapshot, snapshot.sampledAt != nil else { return false }
-        return snapshot.monitoring == .collecting || snapshot.monitoring == .paused
+    var usageAvailable: Bool { applicationUsageAvailable(for: selectedTrafficCategory) }
+    func applicationUsageAvailable(for category: TrafficCategory) -> Bool {
+        guard connected, snapshotIsCurrent, let snapshot else { return false }
+        if let data = snapshot.usage(for: category) { return data.applicationsAvailable }
+        return category == .metered && snapshot.sampledAt != nil
+            && (snapshot.monitoring == .collecting || snapshot.monitoring == .paused)
     }
     var unavailableReason: String {
         if !networkUnavailableReason.isEmpty { return networkUnavailableReason }
@@ -91,19 +96,21 @@ final class AppState {
         return ""
     }
     var applications: [ApplicationSnapshot] {
-        (snapshot?.applications ?? []).sorted {
+        categoryApplications.filter {
+            SystemProcessClassification(identity: $0.identity).visibleInApplicationUsage
+        }.sorted {
             let left = knownUsage($0) ?? -1
             let right = knownUsage($1) ?? -1
             return left == right ? $0.identity.key < $1.identity.key : left > right
         }
     }
     var totalUsage: Int64? {
-        guard connected, snapshotIsCurrent, let usage = snapshot?.interfaceUsage,
+        guard connected, snapshotIsCurrent, let usage = categoryInterfaceUsage,
               usage.day == Self.localDay() else { return nil }
         return usage.totalBytes
     }
-    func knownUsage(_ app: ApplicationSnapshot) -> Int64? {
-        guard usageAvailable,
+    func knownUsage(_ app: ApplicationSnapshot, category: TrafficCategory? = nil) -> Int64? {
+        guard applicationUsageAvailable(for: category ?? selectedTrafficCategory),
               app.usage.appKey == app.identity.key,
               app.usage.day == Self.localDay(),
               app.usage.uploadedBytes >= 0, app.usage.downloadedBytes >= 0 else { return nil }
@@ -173,6 +180,15 @@ final class AppState {
         }
     }
 
+    func downloadAndInstall(_ release: UpdateRelease) {
+        downloadedUpdateURL = nil
+        perform("正在下载更新") { state in
+            let path = try await UpdateInstaller.downloadAndOpen(release)
+            state.downloadedUpdateURL = path
+            state.notice = "更新包已下载并打开。请将 Flow Quota.app 拖到 Applications 文件夹。首次打开若被拦截，请到系统设置的隐私与安全性中选择“仍要打开”。"
+        }
+    }
+
     func enableAgent() {
         perform("正在启用本地服务") { state in
             try await state.client.enableAgent()
@@ -189,17 +205,19 @@ final class AppState {
         }
     }
 
-    func save(appKey: String, rule: QuotaRule, acknowledged: @escaping @MainActor () -> Void) {
-        guard canEdit else { return }
-        guard let current = snapshot?.applications.first(where: { $0.identity.key == appKey }),
+    func save(appKey: String, rule: QuotaRule, category: TrafficCategory? = nil, acknowledged: @escaping @MainActor () -> Void) {
+        let category = category ?? selectedTrafficCategory
+        guard canConfigureNetwork, category == .metered || snapshot?.usage(for: category) != nil else { return }
+        let rows = snapshot?.usage(for: category)?.applications ?? (category == .metered ? snapshot?.applications ?? [] : [])
+        guard let current = rows.first(where: { $0.identity.key == appKey }),
               (current.rule?.version ?? 0) < Int64.max,
               rule.version == (current.rule?.version ?? 0) + 1 else {
             errorMessage = "规则版本已变化。请返回列表重新打开编辑页。"
             return
         }
         perform("正在保存规则") { state in
-            try await state.client.saveRule(appKey: appKey, rule: rule)
-            state.notice = "提醒配置已持久化（版本 \(rule.version)）。"
+            try await state.client.saveRule(appKey: appKey, rule: rule, category: category)
+            state.notice = "\(category.title)提醒配置已持久化（版本 \(rule.version)）。"
             acknowledged()
             await state.refresh()
         }

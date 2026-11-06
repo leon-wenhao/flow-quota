@@ -25,12 +25,14 @@ final class QuotaEvaluationTests: XCTestCase {
 
     func testScopeUnlimitedAndUnavailableRemainDistinct() throws {
         let rule = try QuotaRule(limitBytes: 10)
-        for network in [NetworkState.ordinary, .unknown] {
+        for network in [NetworkState.unknown] {
             let value = try QuotaEvaluator.evaluate(rule: rule, usage: usage(20), network: network)
-            XCTAssertEqual(value.status, network == .ordinary ? .ordinaryNetwork : .unknownNetwork)
+            XCTAssertEqual(value.status, .unknownNetwork)
             XCTAssertFalse(value.countsTraffic)
             XCTAssertNil(value.remainingBytes)
         }
+        XCTAssertEqual(try QuotaEvaluator.evaluate(rule: rule, usage: usage(20), network: .ordinary).status, .blocked)
+        XCTAssertEqual(try QuotaEvaluator.evaluate(rule: nil, usage: usage(20), network: .ordinary).status, .unlimited)
         XCTAssertEqual(try QuotaEvaluator.evaluate(rule: nil, usage: usage(20), network: .hotspot).status, .unlimited)
         XCTAssertEqual(try QuotaEvaluator.evaluate(rule: QuotaRule(limitBytes: nil), usage: usage(20), network: .hotspot).status, .unlimited)
         XCTAssertEqual(try QuotaEvaluator.evaluate(rule: nil, usage: nil, network: .hotspot).status, .usageUnavailable)

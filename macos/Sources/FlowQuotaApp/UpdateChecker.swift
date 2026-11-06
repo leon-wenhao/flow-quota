@@ -36,12 +36,51 @@ struct AppVersion: Comparable, Equatable, Sendable, CustomStringConvertible {
     }
 }
 
+enum UpdateArchitecture {
+    static var current: String {
+#if arch(arm64)
+        return "arm64"
+#elseif arch(x86_64)
+        return "x86_64"
+#else
+        return "unknown"
+#endif
+    }
+}
+
+struct UpdatePackage: Decodable, Equatable, Sendable {
+    let format: String?
+    let fileName: String
+    let url: URL
+    let size: Int64
+    let sha256: String
+
+    func validate() throws {
+        guard fileName.isEmpty == false,
+              fileName.count <= 255,
+              URL(fileURLWithPath: fileName).lastPathComponent == fileName,
+              url.scheme?.lowercased() == "https",
+              url.host != nil,
+              size > 0,
+              size <= UpdateInstaller.maxPackageBytes,
+              sha256.count == 64,
+              sha256.allSatisfy({ $0.isHexDigit }),
+              sha256 == sha256.lowercased() else {
+            throw UpdateCheckError.invalidManifest
+        }
+        if let format, format.lowercased() != "dmg" {
+            throw UpdateCheckError.invalidManifest
+        }
+    }
+}
+
 struct UpdateRelease: Equatable, Sendable {
     let version: AppVersion
     let minimumSystemVersion: String?
     let releaseNotesURL: URL?
     let downloadURL: URL
     let publishedAt: String?
+    let package: UpdatePackage?
 }
 
 enum UpdateCheckState: Equatable, Sendable {
@@ -74,6 +113,7 @@ enum UpdateCheckError: Error, LocalizedError, Equatable, Sendable {
     case httpStatus(Int)
     case invalidManifest
     case incompatibleSystem(String)
+    case packageUnavailable(String)
 
     var errorDescription: String? {
         switch self {
@@ -83,30 +123,56 @@ enum UpdateCheckError: Error, LocalizedError, Equatable, Sendable {
         case .httpStatus(let status): return "更新服务暂时不可用（HTTP \(status)）。"
         case .invalidManifest: return "更新清单不完整或下载地址不安全。"
         case .incompatibleSystem(let version): return "新版本需要 macOS \(version) 或更高版本。"
+        case .packageUnavailable(let architecture): return "当前版本没有适用于此 Mac（\(architecture)）的安装包。"
         }
     }
 }
 
 struct UpdateManifest: Decodable, Equatable, Sendable {
+    let schemaVersion: Int64?
+    let product: String?
+    let channel: String?
     let version: String
     let build: Int64
     let minimumSystemVersion: String?
     let releaseNotesURL: URL?
     let downloadURL: URL
     let publishedAt: String?
+    let packages: [String: UpdatePackage]?
 
     func release() throws -> UpdateRelease {
         let appVersion = try AppVersion(version: version, build: build)
+        if let schemaVersion, schemaVersion >= 2,
+           product != nil && product != "flow-quota" {
+            throw UpdateCheckError.invalidManifest
+        }
+        if let channel, channel != "stable" {
+            throw UpdateCheckError.invalidManifest
+        }
         guard downloadURL.scheme?.lowercased() == "https",
               downloadURL.host != nil,
               releaseNotesURL.map({ $0.scheme?.lowercased() == "https" && $0.host != nil }) ?? true else {
             throw UpdateCheckError.invalidManifest
         }
+
+        let packageKey = "macos/\(UpdateArchitecture.current)"
+        let package: UpdatePackage?
+        if let packages {
+            guard let selected = packages[packageKey] else {
+                throw UpdateCheckError.packageUnavailable(UpdateArchitecture.current)
+            }
+            try selected.validate()
+            package = selected
+        } else {
+            package = nil
+        }
+
         return UpdateRelease(version: appVersion,
                              minimumSystemVersion: minimumSystemVersion,
                              releaseNotesURL: releaseNotesURL,
-                             downloadURL: downloadURL,
-                             publishedAt: publishedAt)
+                             downloadURL: package?.url ?? downloadURL,
+                             publishedAt: publishedAt,
+                             package: package)
     }
 }
 
@@ -118,7 +184,7 @@ extension URLSession: UpdateDataLoading {}
 
 struct UpdateChecker: Sendable {
     static let defaultManifestURL = URL(string:
-        "https://raw.githubusercontent.com/leon-wenhao/flow-quota/main/update-manifest.json")!
+        "https://raw.githubusercontent.com/leon-wenhao/flow-quota-releases/main/update-manifest.json")!
 
     let endpoint: URL
     private let loader: any UpdateDataLoading
@@ -133,7 +199,7 @@ struct UpdateChecker: Sendable {
                                  cachePolicy: .reloadIgnoringLocalCacheData,
                                  timeoutInterval: 10)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("FlowQuota/\(current.marketingString)", forHTTPHeaderField: "User-Agent")
+        request.setValue("FlowQuota/\(current.marketingString); \(UpdateArchitecture.current)", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await loader.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw UpdateCheckError.invalidResponse }
         guard (200...299).contains(http.statusCode) else { throw UpdateCheckError.httpStatus(http.statusCode) }

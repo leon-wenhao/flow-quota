@@ -48,25 +48,25 @@ public actor QuotaStore {
     }
 
     /// Exact retries succeed; versions must increase for any content change.
-    public func saveRule(appKey: String, rule: QuotaRule) throws {
+    public func saveRule(appKey: String, rule: QuotaRule, category: TrafficCategory = .metered) throws {
         try validateAppKey(appKey)
         try database.transaction {
             try requireApplication(appKey)
-            if let previous = try ruleForApp(appKey) {
+            if let previous = try ruleForApp(appKey, category: category) {
                 if previous == rule { return }
                 guard rule.version > previous.version else { throw StoreError.staleRuleVersion }
             }
             try database.execute("""
-                INSERT INTO quota_rules(app_key, limit_bytes, warning_percent, version) VALUES (?, ?, ?, ?)
-                ON CONFLICT(app_key) DO UPDATE SET limit_bytes = excluded.limit_bytes,
+                INSERT INTO quota_rules(app_key, limit_bytes, warning_percent, version, category) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(app_key, category) DO UPDATE SET limit_bytes = excluded.limit_bytes,
                   warning_percent = excluded.warning_percent, version = excluded.version
                 """, [.text(appKey), .optional(rule.limitBytes), .integer(Int64(rule.warningPercent)),
-                      .integer(rule.version)])
+                      .integer(rule.version), .text(category.rawValue)])
         }
     }
 
-    public func loadRules() throws -> [String: QuotaRule] {
-        let rows = try database.query("SELECT app_key, limit_bytes, warning_percent, version FROM quota_rules") {
+    public func loadRules(category: TrafficCategory = .metered) throws -> [String: QuotaRule] {
+        let rows = try database.query("SELECT app_key, limit_bytes, warning_percent, version FROM quota_rules WHERE category = ?", [.text(category.rawValue)]) {
             ($0.text(0), try Self.readRule($0, offset: 1))
         }
         var rules: [String: QuotaRule] = [:]
@@ -80,15 +80,15 @@ public actor QuotaStore {
     }
 
     /// Actual settled/recorded bytes only. Query budgetBalance for unknown liabilities.
-    public func snapshot(day: String) throws -> [ApplicationSnapshot] {
+    public func snapshot(day: String, category: TrafficCategory = .metered) throws -> [ApplicationSnapshot] {
         try StoreDay.validate(day)
         return try database.query("""
             SELECT a.app_key, a.name, r.limit_bytes, r.warning_percent, r.version,
                    COALESCE(u.uploaded_bytes, 0), COALESCE(u.downloaded_bytes, 0)
-            FROM applications a LEFT JOIN quota_rules r ON r.app_key = a.app_key
-            LEFT JOIN daily_usage u ON u.app_key = a.app_key AND u.day = ?
+            FROM applications a LEFT JOIN quota_rules r ON r.app_key = a.app_key AND r.category = ?
+            LEFT JOIN daily_usage u ON u.app_key = a.app_key AND u.day = ? AND u.category = ?
             ORDER BY a.app_key
-            """, [.text(day)]) { row in
+            """, [.text(category.rawValue), .text(day), .text(category.rawValue)]) { row in
                 ApplicationSnapshot(identity: AppIdentity(key: row.text(0), name: row.text(1)),
                     rule: try row.optionalInteger(4).map { _ in try Self.readRule(row, offset: 2) },
                     usage: DailyUsage(appKey: row.text(0), day: day,
@@ -115,37 +115,36 @@ public actor QuotaStore {
     /// A crash before acknowledgment may retry scheduling with the same OS identifier.
     /// Legacy `.blocked` records a reached threshold, not connection blocking.
     public func claimNotification(appKey: String, day: String, kind: NotificationKind,
-                                  ruleVersion: Int64) throws -> Bool {
+                                  ruleVersion: Int64, category: TrafficCategory = .metered) throws -> Bool {
         try validateAppKey(appKey)
         try StoreDay.validate(day)
         return try database.transaction {
-            _ = try requireRule(appKey: appKey, version: ruleVersion)
+            _ = try requireRule(appKey: appKey, version: ruleVersion, category: category)
             try database.execute("""
-                INSERT INTO notification_receipts(app_key, day, kind, rule_version) VALUES (?, ?, ?, ?)
-                ON CONFLICT(app_key, day, kind, rule_version) DO NOTHING
-                """, [.text(appKey), .text(day), .text(kind == .blocked ? "exceeded" : "warning"), .integer(ruleVersion)])
+                INSERT INTO notification_receipts(app_key, day, kind, rule_version, category) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(app_key, day, kind, rule_version, category) DO NOTHING
+                """, [.text(appKey), .text(day), .text(kind == .blocked ? "exceeded" : "warning"), .integer(ruleVersion), .text(category.rawValue)])
             return try database.scalar("SELECT changes()") == 1
         }
     }
 
-    /// Removes prior-day alert events, interface totals, receipts and settled leases;
-    /// retains unresolved leases and their application usage.
-    /// Call on startup/day rollover; today, rules and identities are retained.
+    /// Reminder-mode retention: only the current local day's measured data survives.
+    /// Old lease evidence is deliberately discarded; this is not a blocking ledger.
+    /// Settings and identities remain. A failed purge/checkpoint is reported for retry.
     public func prunePreviousDays() throws {
         let today = try StoreDay.label(at: clock(), calendar: calendar)
         try StoreDay.validate(today)
         try database.transaction {
-            try database.execute("DELETE FROM traffic_alert_events WHERE day < ?", [.text(today)])
-            try database.execute("DELETE FROM daily_interface_usage WHERE day < ?", [.text(today)])
-            try database.execute("DELETE FROM budget_leases WHERE day < ? AND uploaded_bytes IS NOT NULL", [.text(today)])
-            try database.execute("DELETE FROM notification_receipts WHERE day < ?", [.text(today)])
-            // Keep the complete charged balance for days with uncertain consumers.
-            // Expiry/day rollover alone is never proof that a grant was not spent.
-            try database.execute("""
-                DELETE FROM daily_usage WHERE day < ? AND NOT EXISTS (
-                  SELECT 1 FROM budget_leases b WHERE b.app_key = daily_usage.app_key
-                    AND b.day = daily_usage.day AND b.uploaded_bytes IS NULL)
-                """, [.text(today)])
+            for table in ["traffic_alert_events", "application_usage_minutes", "interface_usage_minutes", "daily_interface_usage",
+                          "budget_leases", "notification_receipts", "daily_usage"] {
+                // Fixed internal table names; all externally derived values are bound.
+                try database.execute("DELETE FROM \(table) WHERE day <> ?", [.text(today)])
+            }
+        }
+        // secure_delete clears freed cells; truncating WAL removes pre-purge frames.
+        // Readers may delay checkpointing, so do not mark maintenance complete on busy.
+        guard try database.scalar("PRAGMA wal_checkpoint(TRUNCATE)") == 0 else {
+            throw StoreError.configuration("当天数据清理已提交，但旧 WAL 尚被占用；将重试清理。")
         }
     }
 
@@ -155,14 +154,14 @@ public actor QuotaStore {
         }
     }
 
-    func ruleForApp(_ key: String) throws -> QuotaRule? {
-        try database.query("SELECT limit_bytes, warning_percent, version FROM quota_rules WHERE app_key = ?",
-                           [.text(key)]) { try Self.readRule($0, offset: 0) }.first
+    func ruleForApp(_ key: String, category: TrafficCategory = .metered) throws -> QuotaRule? {
+        try database.query("SELECT limit_bytes, warning_percent, version FROM quota_rules WHERE app_key = ? AND category = ?",
+                           [.text(key), .text(category.rawValue)]) { try Self.readRule($0, offset: 0) }.first
     }
 
-    func requireRule(appKey: String, version: Int64) throws -> QuotaRule {
+    func requireRule(appKey: String, version: Int64, category: TrafficCategory = .metered) throws -> QuotaRule {
         try requireApplication(appKey)
-        guard let rule = try ruleForApp(appKey) else { throw StoreError.missingRule(appKey) }
+        guard let rule = try ruleForApp(appKey, category: category) else { throw StoreError.missingRule(appKey) }
         guard rule.version == version else { throw StoreError.staleRuleVersion }
         return rule
     }
@@ -172,21 +171,21 @@ public actor QuotaStore {
                       version: row.integer(offset + 2))
     }
 
-    func addUsage(appKey: String, day: String, upload: Int64, download: Int64) throws {
-        let current = try usage(appKey: appKey, day: day)
+    func addUsage(appKey: String, day: String, upload: Int64, download: Int64, category: TrafficCategory = .metered) throws {
+        let current = try usage(appKey: appKey, day: day, category: category)
         let newUpload = try checkedAdd(current.uploadedBytes, upload)
         let newDownload = try checkedAdd(current.downloadedBytes, download)
         _ = try checkedAdd(newUpload, newDownload)
         try database.execute("""
-            INSERT INTO daily_usage(app_key, day, uploaded_bytes, downloaded_bytes) VALUES (?, ?, ?, ?)
-            ON CONFLICT(app_key, day) DO UPDATE SET uploaded_bytes = excluded.uploaded_bytes,
+            INSERT INTO daily_usage(app_key, day, uploaded_bytes, downloaded_bytes, category) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(app_key, day, category) DO UPDATE SET uploaded_bytes = excluded.uploaded_bytes,
               downloaded_bytes = excluded.downloaded_bytes
-            """, [.text(appKey), .text(day), .integer(newUpload), .integer(newDownload)])
+            """, [.text(appKey), .text(day), .integer(newUpload), .integer(newDownload), .text(category.rawValue)])
     }
 
-    func usage(appKey: String, day: String) throws -> DailyUsage {
-        try database.query("SELECT uploaded_bytes, downloaded_bytes FROM daily_usage WHERE app_key = ? AND day = ?",
-                           [.text(appKey), .text(day)]) {
+    func usage(appKey: String, day: String, category: TrafficCategory = .metered) throws -> DailyUsage {
+        try database.query("SELECT uploaded_bytes, downloaded_bytes FROM daily_usage WHERE app_key = ? AND day = ? AND category = ?",
+                           [.text(appKey), .text(day), .text(category.rawValue)]) {
             DailyUsage(appKey: appKey, day: day, uploadedBytes: $0.integer(0), downloadedBytes: $0.integer(1))
         }.first ?? DailyUsage(appKey: appKey, day: day, uploadedBytes: 0, downloadedBytes: 0)
     }

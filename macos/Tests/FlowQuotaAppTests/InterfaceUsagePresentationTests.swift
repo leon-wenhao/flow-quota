@@ -15,7 +15,7 @@ import Testing
     #expect(!state.interfaceUsageIsPreserved)
     #expect(state.knownUsage(try application(used: 1_000)) == 1_000)
     #expect(state.interfaceServiceMessage == "物理接口正在采样。")
-    #expect(state.menuBarUsageText == UsageFormatter.bytes(200))
+    #expect(state.menuBarUsageText == "200B")
 }
 
 @MainActor @Test func nonzeroApplicationUsageCannotFillMissingInterfaceTotal() async throws {
@@ -27,7 +27,7 @@ import Testing
     #expect(state.knownUsage(try application(used: 1_000)) == 1_000)
     #expect(state.totalUsage == nil)
     #expect(!state.interfaceUsageAvailable)
-    #expect(state.menuBarUsageText == "未知")
+    #expect(state.menuBarUsageText == "—")
     #expect(state.interfaceUsageReason.contains("不会用于补齐"))
     #expect(state.interfaceServiceMessage == "接口总量尚未就绪。")
 }
@@ -71,7 +71,7 @@ import Testing
         #expect(state.totalUsage == nil)
         #expect(!state.interfaceUsageAvailable)
         #expect(state.interfaceUsageReason.contains("字节计数"))
-        #expect(state.menuBarUsageText == "未知")
+        #expect(state.menuBarUsageText == "—")
     }
 }
 
@@ -111,7 +111,7 @@ import Testing
     #expect(state.totalUsage == 200)
     #expect(state.interfaceUsageIsPreserved)
     #expect(state.interfaceUsageReason.contains("采集已暂停"))
-    #expect(state.menuBarUsageText == "已保留 \(UsageFormatter.bytes(200))")
+    #expect(state.menuBarUsageText == "200B")
     #expect(state.interfaceMenuHelp.contains("采集已暂停"))
     #expect(state.interfaceMenuHelp.contains(client.state.interfaceMessage))
 }

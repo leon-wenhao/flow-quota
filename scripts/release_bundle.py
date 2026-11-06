@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+"""Offline release metadata for the public binary repository (Python 3.9+).
+
+Only version/build/minimumSystemVersion are read from the private source manifest.
+The publisher must upload validate_bundle's explicit paths, never a directory glob.
+SHA256 uses incremental update: https://docs.python.org/3.9/library/hashlib.html
+"""
+
+import argparse
+from datetime import datetime, timezone
+import hashlib
+import json
+from pathlib import Path
+import re
+import stat
+import sys
+
+
+ARCHITECTURES = ("arm64", "x86_64")
+METADATA = ("SHA256SUMS", "update-manifest.json", "release-manifest.json", "RELEASE-NOTES.md")
+CHUNK_SIZE = 1024 * 1024
+MAX_INT = 2**63 - 1
+NUMBER = r"(?:0|[1-9][0-9]*)"
+VERSION = NUMBER + r"\." + NUMBER + r"\." + NUMBER
+
+
+def _require(condition, message):
+    if not condition:
+        raise ValueError(message)
+
+
+def _keys(value, names):
+    _require(isinstance(value, dict) and set(value) == set(names), "Unexpected manifest fields")
+
+
+def _identity(version, build, minimum):
+    _require(isinstance(version, str) and re.fullmatch(VERSION, version), "Invalid version")
+    _require(all(int(part) <= MAX_INT for part in version.split(".")), "Version out of range")
+    _require(type(build) is int and 0 < build <= MAX_INT, "Invalid build")
+    _require(isinstance(minimum, str) and re.fullmatch(NUMBER + r"\." + NUMBER +
+             r"(?:\." + NUMBER + r")?", minimum), "Invalid minimumSystemVersion")
+    _require(all(int(part) <= MAX_INT for part in minimum.split(".")), "System version out of range")
+
+
+def _urls(repo, version, build):
+    _require(isinstance(repo, str) and re.fullmatch(
+        r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9][A-Za-z0-9_.-]*", repo),
+        "Invalid repository; expected OWNER/REPO")
+    root = "https://github.com/{}/releases".format(repo)
+    tag = "v{}-build.{}".format(version, build)
+    return root + "/tag/" + tag, root + "/download/" + tag + "/"
+
+
+def _files(output):
+    _require(not output.is_symlink() and output.is_dir(), "Output must be a real directory")
+    paths = list(output.iterdir())
+    _require(all(stat.S_ISREG(path.lstat().st_mode) for path in paths),
+             "Bundle contains a symlink or non-regular file")
+    return {path.name for path in paths}
+
+
+def _names(version):
+    return ["FlowQuota-{}-{}.dmg".format(version, arch) for arch in ARCHITECTURES]
+
+
+def _asset(path):
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(CHUNK_SIZE), b""):
+            size += len(chunk)
+            digest.update(chunk)
+    _require(0 < size <= 2 * 1024**3, "DMG size outside client limits")
+    return {"file": path.name, "size": size, "sha256": digest.hexdigest()}
+
+
+def _read_json(path):
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            _require(key not in result, "Duplicate JSON field")
+            result[key] = value
+        return result
+
+    value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+    _require(isinstance(value, dict), "Manifest must be a JSON object")
+    return value
+
+
+def _write_json(path, value):
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def _checksums(assets):
+    return "".join("{}  {}\n".format(asset["sha256"], asset["file"]) for asset in assets)
+
+
+def _notes(version, build, minimum):
+    # Fixed text prevents private source metadata from entering public notes.
+    return """# Flow Quota {version}（build {build}）
+
+## 功能概述
+
+Flow Quota 在 macOS 菜单栏提供流量采样统计、应用用量分析和分时图表，
+分别统计普通网络与热点／高成本网络，支持每日阈值和短时大流量预警。
+达到阈值时只发送通知，不阻断连接。统计仅覆盖服务运行期间观测到的增量，
+应用归因可能重叠，不等同于接口总量或运营商账单。
+
+## 系统与安装包
+
+- 最低系统：macOS {minimum}。
+- Apple silicon：FlowQuota-{version}-arm64.dmg（arm64）。
+- Intel：FlowQuota-{version}-x86_64.dmg（x86_64）。
+- 签名：本地 ad-hoc 签名，尚未完成 Apple 公证（notarized: false）。
+
+## 首次打开
+
+打开适合本机架构的 DMG，将 Flow Quota 拖入“应用程序”后启动。
+由于此版本使用 ad-hoc 签名且未公证，macOS 可能提示无法验证开发者。
+确认下载来源可信后，在“系统设置 → 隐私与安全性”中使用系统提供的
+“仍要打开”，按系统提示确认。本文不提供绕过安全检查的命令；
+如果系统未提供该选项或仍拒绝启动，请保留提示信息并反馈。
+首次使用时允许通知；通知权限失败可在应用中查看。
+""".format(version=version, build=build, minimum=minimum)
+
+
+def prepare_bundle(output, source_manifest, repo, version, build):
+    """Generate four public metadata files beside two existing DMGs, then validate.
+
+    Raises ValueError/OSError for invalid inputs; does not build or upload anything.
+    Source identity must match the explicit release arguments. Other source fields
+    are intentionally never copied, including source paths and commit identifiers.
+    """
+    output = Path(output)
+    source = _read_json(Path(source_manifest))
+    minimum = source.get("minimumSystemVersion")
+    _identity(version, build, minimum)
+    _require(source.get("version") == version and type(source.get("build")) is int
+             and source["build"] == build, "Source version/build mismatch")
+    release_url, download_root = _urls(repo, version, build)
+    names = _names(version)
+    present = _files(output)
+    _require(set(names) <= present <= set(names + list(METADATA)),
+             "Missing DMG or unexpected bundle file")
+    assets = [_asset(output / name) for name in names]
+    packages = {
+        "macos/" + arch: {"format": "dmg", "fileName": asset["file"],
+                          "url": download_root + asset["file"],
+                          "size": asset["size"], "sha256": asset["sha256"]}
+        for arch, asset in zip(ARCHITECTURES, assets)
+    }
+    manifest = {
+        "schemaVersion": 2, "product": "flow-quota", "channel": "stable",
+        "version": version, "build": build, "minimumSystemVersion": minimum,
+        "releaseNotesURL": release_url, "downloadURL": release_url,
+        "publishedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "packages": packages,
+    }
+    release = {"version": version, "build": build, "releaseURL": release_url,
+               "minimumSystemVersion": minimum, "assets": assets,
+               "signing": "ad-hoc", "notarized": False}
+    _write_json(output / "update-manifest.json", manifest)
+    _write_json(output / "release-manifest.json", release)
+    (output / "SHA256SUMS").write_text(_checksums(assets), encoding="utf-8")
+    (output / "RELEASE-NOTES.md").write_text(_notes(version, build, minimum), encoding="utf-8")
+    return validate_bundle(output, repo)
+
+
+def validate_bundle(output, repo):
+    """Return (schema-2 update dict, six explicit Path objects) for a valid bundle.
+
+    Raises ValueError/OSError on failure. All paths are regular files from a fixed
+    allowlist; callers must keep the directory unchanged between validation/upload.
+    This checks offline metadata integrity, not DMG architecture or code signing.
+    """
+    output = Path(output)
+    present = _files(output)
+    _require("update-manifest.json" in present, "Missing update-manifest.json")
+    manifest = _read_json(output / "update-manifest.json")
+    _keys(manifest, ("schemaVersion", "product", "channel", "version", "build",
+                     "minimumSystemVersion", "releaseNotesURL", "downloadURL",
+                     "publishedAt", "packages"))
+    version, build, minimum = (manifest[key] for key in ("version", "build", "minimumSystemVersion"))
+    _identity(version, build, minimum)
+    release_url, download_root = _urls(repo, version, build)
+    names = _names(version)
+    _require(present == set(names + list(METADATA)), "Missing or unexpected bundle files")
+    _require(type(manifest["schemaVersion"]) is int and manifest["schemaVersion"] == 2
+             and manifest["product"] == "flow-quota" and manifest["channel"] == "stable",
+             "Unsupported update schema/product/channel")
+    _require(manifest["releaseNotesURL"] == release_url and manifest["downloadURL"] == release_url,
+             "Release URL must match repository and build tag")
+    published = manifest["publishedAt"]
+    _require(isinstance(published, str), "Invalid publication timestamp")
+    _require(datetime.strptime(published, "%Y-%m-%dT%H:%M:%SZ").strftime(
+        "%Y-%m-%dT%H:%M:%SZ") == published, "Invalid publication timestamp")
+    packages = manifest["packages"]
+    _keys(packages, ["macos/" + arch for arch in ARCHITECTURES])
+    assets = []
+    for arch, name in zip(ARCHITECTURES, names):
+        package = packages["macos/" + arch]
+        _keys(package, ("format", "fileName", "url", "size", "sha256"))
+        _require(package["format"] == "dmg" and package["fileName"] == name
+                 and package["url"] == download_root + name, "Invalid package path/URL/architecture")
+        _require(type(package["size"]) is int and package["size"] > 0, "Invalid package size")
+        _require(isinstance(package["sha256"], str) and
+                 re.fullmatch(r"[0-9a-f]{64}", package["sha256"]), "Invalid SHA-256 digest")
+        asset = _asset(output / name)
+        _require(package["size"] == asset["size"] and package["sha256"] == asset["sha256"],
+                 "DMG size/digest mismatch")
+        assets.append(asset)
+    release = _read_json(output / "release-manifest.json")
+    _keys(release, ("version", "build", "releaseURL", "minimumSystemVersion", "assets",
+                    "signing", "notarized"))
+    _require(type(release["build"]) is int and release["notarized"] is False,
+             "Invalid release build/notarization")
+    _require(isinstance(release["assets"], list) and len(release["assets"]) == 2,
+             "Expected two release assets")
+    for asset in release["assets"]:
+        _keys(asset, ("file", "size", "sha256"))
+        _require(type(asset["size"]) is int, "Invalid release asset size")
+    _require(release == {"version": version, "build": build, "releaseURL": release_url,
+                        "minimumSystemVersion": minimum, "assets": assets,
+                        "signing": "ad-hoc", "notarized": False}, "Release manifest mismatch")
+    _require((output / "SHA256SUMS").read_text(encoding="utf-8") == _checksums(assets),
+             "SHA256SUMS mismatch")
+    _require((output / "RELEASE-NOTES.md").read_text(encoding="utf-8") == _notes(version, build, minimum),
+             "Release notes differ from public template")
+    return manifest, [output / name for name in names + list(METADATA)]
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    for command in ("prepare", "validate"):
+        child = commands.add_parser(command)
+        child.add_argument("--output", required=True, type=Path)
+        child.add_argument("--repo", required=True)
+        if command == "prepare":
+            child.add_argument("--source-manifest", required=True, type=Path)
+            child.add_argument("--version", required=True)
+            child.add_argument("--build", required=True)
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "prepare":
+            _require(re.fullmatch(r"[1-9][0-9]*", args.build), "Invalid build")
+            manifest, assets = prepare_bundle(args.output, args.source_manifest, args.repo,
+                                              args.version, int(args.build))
+        else:
+            manifest, assets = validate_bundle(args.output, args.repo)
+    except (ValueError, OSError) as error:
+        parser.exit(1, "release bundle: {}\n".format(error))
+    print("Validated v{}-build.{}: {} assets".format(manifest["version"], manifest["build"], len(assets)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

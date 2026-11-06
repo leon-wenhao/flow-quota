@@ -13,6 +13,29 @@ enum UsageFormatter {
         return formatter.string(fromByteCount: value)
     }
 
+    /// Compact decimal units for the menu bar only; full units remain in the
+    /// tooltip/panel. Integer rounding keeps output at most four ASCII characters.
+    static func compactBytes(_ value: Int64?) -> String {
+        guard let value, value >= 0 else { return "—" }
+        let units: [(bytes: Int64, suffix: String)] = [
+            (1, "B"), (1_000, "K"), (1_000_000, "M"), (1_000_000_000, "G"),
+            (1_000_000_000_000, "T"), (1_000_000_000_000_000, "P"), (1_000_000_000_000_000_000, "E")
+        ]
+        let index = units.lastIndex { value >= $0.bytes } ?? 0
+        let unit = units[index]
+        guard index > 0 else { return "\(value)B" }
+        let whole = value / unit.bytes
+        if whole >= 10 {
+            let rounded = whole + (value % unit.bytes >= unit.bytes / 2 ? 1 : 0)
+            if rounded == 1_000, index + 1 < units.count { return "1" + units[index + 1].suffix }
+            return "\(rounded)\(unit.suffix)"
+        }
+        let tenth = unit.bytes / 10
+        let rounded = value / tenth + (value % tenth >= tenth / 2 ? 1 : 0)
+        let number = rounded % 10 == 0 ? "\(rounded / 10)" : "\(rounded / 10).\(rounded % 10)"
+        return number + unit.suffix
+    }
+
     static func total(_ values: [Int64]) -> Int64? {
         var total: Int64 = 0
         for value in values {

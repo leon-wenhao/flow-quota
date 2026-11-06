@@ -8,3 +8,7 @@ xcuserdata/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+# Local Python tooling caches.
+__pycache__/
+*.pyc

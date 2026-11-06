@@ -37,7 +37,7 @@ if pgrep -x FlowQuotaAgent >/dev/null || pgrep -x nettop >/dev/null; then
     exit 1
 fi
 launchctl print "$FQ_DOMAIN/local.flowquota.agent" > "$FQ_OUT/launchd-before.txt" 2>&1 || true
-if FQ_PREVIOUS_PAUSE="$(launchctl getenv FLOW_QUOTA_VERIFY_PAUSED 2>/dev/null)"; then
+if FQ_PREVIOUS_PAUSE="$(launchctl getenv FLOW_QUOTA_VERIFY_PAUSED 2>/dev/null)" && [[ -n "$FQ_PREVIOUS_PAUSE" ]]; then
     FQ_PREVIOUS_SET=true
 fi
 printf '%s\n' "$FQ_PREVIOUS_SET" > "$FQ_OUT/previous-pause-set.txt"
@@ -60,7 +60,7 @@ for FQ_PID in $FQ_UI_PIDS; do
 done
 
 # Stage beside /Applications so installing the complete signed bundle is a rename.
-# Retain the previous app for rollback; never overlay individual signed files.
+# Temporarily retain the previous app for failure recovery; remove it on success.
 FQ_STAGE="$(mktemp -d '/Applications/.FlowQuota-stage.XXXXXX')"
 ditto "$FQ_SOURCE" "$FQ_STAGE/Flow Quota.app"
 codesign --verify --deep --strict "$FQ_STAGE/Flow Quota.app"
@@ -69,16 +69,39 @@ mv "$FQ_STAGE/Flow Quota.app" "$FQ_APP"
 rmdir "$FQ_STAGE"
 codesign --verify --deep --strict "$FQ_APP"
 FQ_LSREGISTER='/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
-"$FQ_LSREGISTER" -u "$FQ_SOURCE"
-if [[ -d '/Volumes/Flow Quota Development/Flow Quota.app' ]]; then
-    "$FQ_LSREGISTER" -u '/Volumes/Flow Quota Development/Flow Quota.app'
+# An unregistered known copy may return -10814. It has no registration to remove;
+# preserve all other LaunchServices failures instead of silently ignoring them.
+unregister_known_copy() {
+    local fq_path="$1" fq_output
+    if fq_output="$("$FQ_LSREGISTER" -u "$fq_path" 2>&1)"; then return; fi
+    if [[ "$fq_output" == *'-10814'* ]]; then
+        echo "No LaunchServices entry for known copy: $fq_path"
+        return
+    fi
+    printf '%s\n' "$fq_output" >&2
+    return 1
+}
+unregister_known_copy "$FQ_SOURCE"
+# Moving the previous bundle can leave its identity registered at the recovery path.
+# Unregister that known copy before registering the newly installed service bundle.
+if [[ -d "$FQ_OUT/Previous Flow Quota.app" ]]; then
+    unregister_known_copy "$FQ_OUT/Previous Flow Quota.app"
 fi
-"$FQ_LSREGISTER" -u "$FQ_APP"
+if [[ -d '/Volumes/Flow Quota Development/Flow Quota.app' ]]; then
+    unregister_known_copy '/Volumes/Flow Quota Development/Flow Quota.app'
+fi
+unregister_known_copy "$FQ_APP"
 "$FQ_LSREGISTER" -f "$FQ_APP"
 
 # SMAppService performs unregister/register through the app's real identity.
 # The inherited launchd override also covers the helper's cold-start branch.
 for FQ_ATTEMPT in 1 2 3; do
+    if (( FQ_ATTEMPT > 1 )); then
+        # After an ad-hoc binary changes, launchd can initially receive an empty
+        # cdhash constraint. Refresh this bundle's registration before retrying.
+        unregister_known_copy "$FQ_APP"
+        "$FQ_LSREGISTER" -f "$FQ_APP"
+    fi
     # Exercise the actual LaunchServices application launch after refreshing
     # registration. A successful open alone is insufficient; require XPC evidence.
     if open -n -W -a "$FQ_APP" --stdout "$FQ_OUT/service-$FQ_ATTEMPT.json" \
@@ -90,9 +113,12 @@ for FQ_ATTEMPT in 1 2 3; do
         fi
         launchctl print "$FQ_DOMAIN/local.flowquota.agent" > "$FQ_OUT/launchd-after.txt"
         open -n -a "$FQ_APP" --args --window
+        if [[ -d "$FQ_OUT/Previous Flow Quota.app" ]]; then
+            rm -rf -- "$FQ_OUT/Previous Flow Quota.app"
+        fi
         FQ_SUCCESS=true
         cat "$FQ_OUT/service-$FQ_ATTEMPT.json"
-        echo "Reopened current app; service paused. Previous app retained in $FQ_OUT"
+        echo "Reopened current app; service paused. Temporary previous app removed; diagnostics in $FQ_OUT"
         exit 0
     fi
     cat "$FQ_OUT/service-$FQ_ATTEMPT.err" >&2

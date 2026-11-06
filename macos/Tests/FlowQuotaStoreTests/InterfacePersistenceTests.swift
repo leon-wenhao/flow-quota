@@ -155,7 +155,7 @@ struct InterfacePersistenceTests {
         try await store.prunePreviousDays()
         #expect(try await store.interfaceUsage(day: oldDay) == nil)
         #expect(try await store.interfaceUsage(day: today) == current)
-        #expect(try await store.budgetBalance(appKey: "signed:app", day: oldDay).outstandingBytes == 10)
+        #expect(try await store.budgetBalance(appKey: "signed:app", day: oldDay).outstandingBytes == 0)
         #expect(try await store.loadRules()["signed:app"]?.version == 1)
         try await store.close()
     }

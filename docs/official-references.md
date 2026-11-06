@@ -113,3 +113,75 @@
 - 本机官方 `clock_gettime(3)`／`clock_gettime_nsec_np(3)` 手册：`CLOCK_MONOTONIC` 包含系统休眠；`CLOCK_MONOTONIC_RAW` 同样连续递增且不受时间或频率调整影响，不能与其他时钟基准混用；`CLOCK_UPTIME_RAW` 排除休眠。`clock_gettime_nsec_np` 返回 64 位纳秒，API 自 macOS 10.12 提供。
 - Xcode 27.2 / macOS SDK 27.2 `usr/include/_time.h` 的公开常量和 availability 声明确认上述 clock id 及函数，适用于项目最低 macOS 14。`SamplingClock` 集中读取 RAW 连续时间，`NettopParser` 和接口采样共用；应用与接口累计器及滚动窗口继续接受显式纳秒以支持纯模拟测试。
 - 使用官方时钟前后读数包围默认 parser 时钟的测试核对时钟来源；以注入的包含休眠时长的纳秒验证 8 秒断点。未让设备实际睡眠，不宣称已完成真实唤醒或各型号平台的验收。
+
+## Mihomo 本地 controller API（2026-11-05）
+
+- 本机当前 Mihomo 由 Clash Verge 以 `-ext-ctl-unix /var/run/clash-verge-service/users/<uid>/verge-mihomo.sock` 启动；socket 权限为当前用户 `0600`。Flow Quota 只读请求 `/connections`，不读取密钥、不修改配置。
+- 公开 macOS Unix domain socket API（`socket`／`connect`／`send`／`recv`）用于本地传输；HTTP 状态、响应大小、chunked framing 和 JSON 字段均严格校验。具体响应字段以本机运行的 Mihomo 版本为准，未知字段忽略，缺失的可选进程字段显示来源未确认。
+- API 归因与物理接口计量、nettop 应用计量分开；本轮不把 API 数据写入日用量表，不宣称能恢复已关闭连接或完整运营商账单。边界和证据见 `mihomo-api.md`。
+
+
+### 独立偏好设置窗口（2026-11-05）
+
+- Apple [NSWindowController](https://developer.apple.com/documentation/appkit/nswindowcontroller)：管理单个原生窗口的生命周期；应用保留同一控制器，按需显示并复用。
+- Apple [NSWindow.StyleMask](https://developer.apple.com/documentation/appkit/nswindow/stylemask-swift.struct)：使用 titled、closable、miniaturizable 和 resizable 原生窗口样式。
+- Apple [NSHostingController](https://developer.apple.com/documentation/swiftui/nshostingcontroller)：在原生 AppKit 窗口承载 SwiftUI 内容。
+- Apple [Window](https://developer.apple.com/documentation/swiftui/window)：核对单实例 SwiftUI scene 的行为后，本项目沿用已有 AppDelegate 的 AppKit 窗口管理方式，便于菜单栏及 `--window` 统一入口、避免重复设置窗口。
+- 适用项目最低 macOS 14；本机 Swift 6.4.2／macOS SDK 27.2，arm64 及 x86_64 编译。原生窗口 fixture 测试使用假服务，不产生网络采样流量。
+
+
+### Clash 来源列表（2026-11-05）
+
+- 本轮成功读取并核对 Mihomo **v1.19.33** 官方源码：`constant/metadata.go`（host/sniffHost/processPath；RuleHost 优先非空 sniffHost）、`hub/route/connections.go`（只读 GET 连接快照）、`tunnel/statistic/tracker.go`（连接 ID、计数、链和关闭生命周期）。固定版本链接、产品站点分类表与降级行为见 `mihomo-api.md`。
+- 应用列表显示 API 聚合的站点／原始应用（Clash），DIRECT 也表示由 Clash 处理，不从未知链名猜测节点类型。应用路径按既有规则分组，不把 API 提供元数据当作签名认证身份。
+- 本次为独立展示口径，不改 nettop 日账本和接口总量，不新增代理表。关闭连接、暂停、失败恢复和网络类别隔离以模拟 API／临时数据库验证，不生成网络实验流量。
+
+
+### Swift Charts 悬停提示（2026-11-05）
+
+- Apple [ChartProxy.plotFrame](https://developer.apple.com/documentation/charts/chartproxy/plotframe)：绘图区 frame 的 anchor，可能为 nil；macOS 14 起可用。
+- Apple [ChartProxy](https://developer.apple.com/documentation/charts/chartproxy)：使用 `value(atX:)` 从绘图区横坐标取时间，`position(forX:)` 定位时段中心。
+- Apple [onContinuousHover](https://developer.apple.com/documentation/swiftui/view/oncontinuoushover(coordinatespace:perform:))：以进入、连续移动和退出的阶段管理浮层；浮层禁止命中测试，避免遮挡底层跟踪区。
+- 实现与本机 Swift 6.4.2／macOS SDK 27.2 编译检查一致，项目最低 macOS 14；Intel 仅交叉编译，无真实 Intel 鼠标交互验收。
+
+## 2026-11-06 当天留存维护
+
+- SQLite PRAGMA secure_delete（https://www.sqlite.org/pragma.html#pragma_secure_delete）：连接启用 ON，清理删除单元；不把逻辑删除宣传为系统备份或存储介质安全擦除。
+- SQLite PRAGMA wal_checkpoint（https://www.sqlite.org/pragma.html#pragma_wal_checkpoint）：清理事务提交后使用 TRUNCATE，检查返回的 busy 标记；失败保留重试状态。
+- 后台日期检查沿用项目已使用的 Swift Task.sleep(for:) 和取消机制；30 秒只检查日期，成功清理后不每次采样截断 WAL。
+- 工具链仍为 Swift tools 6.0、最低 macOS 14，本机 arm64 编译与临时数据库测试验证；真实热点流量未用于验收。
+
+## Application timeline / directional pies (2026-11-06)
+
+- Apple Swift Charts `ChartProxy.angle(at:)`: https://developer.apple.com/documentation/charts/chartproxy/angle(at:)
+  Point is plot-relative; 12 o'clock = zero, clockwise positive.
+- `ChartProxy.value(atAngle:as:)`: https://developer.apple.com/documentation/charts/chartproxy/value(atangle:as:)
+  Converts the above angle to a sector-domain value; nil is not a valid sector.
+- `ChartProxy.plotFrame`, `value(atX:)`, `value(atY:)`, `RectangleMark`, `SectorMark`:
+  https://developer.apple.com/documentation/charts/chartproxy
+  https://developer.apple.com/documentation/charts/rectanglemark
+  https://developer.apple.com/documentation/charts/sectormark
+  Uses explicit x/y ranges for the paired stacks; the sector/tooltip overlay never
+  participates in the chart data domain. SDK declarations and compilation verify
+  availability at the project's macOS 14 minimum (Swift tools 6.0).
+- SQLite v7 uses the existing transaction/FK/integer-validation policy; no new
+  SQLite API or dependency. Range scan and aggregate query plans are fixture-tested.
+
+Apple's DocC JSON for the two angle methods was read directly, in addition to
+local SDK declarations. Actual native sector hover and data preservation are
+recorded in ui-implementation.md after installation; simulations are not traffic
+measurement validation.
+
+
+## 私有源码与公开二进制分发（2026-11-06）
+
+- [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases)：Release、tag 与源码归档均属于各自仓库；公开资料仓库必须有独立历史，不能通过把源码仓库改为公开来分发附件。
+- [gh release create](https://cli.github.com/manual/gh_release_create)、[upload](https://cli.github.com/manual/gh_release_upload)、[edit](https://cli.github.com/manual/gh_release_edit)：草稿创建、显式资产上传、`--verify-tag`、`--draft=false`、`--latest`，使用本机 gh 2.103.3 官方帮助核对参数。
+- [Release assets API](https://docs.github.com/en/rest/releases/assets#get-a-release-asset)：使用返回的文件名、上传状态、size 和 sha256 digest 核对上传结果，不为验收重新下载 DMG。
+- [Python 3.9 hashlib](https://docs.python.org/3.9/library/hashlib.html)：标准库分块 SHA-256；本机系统 Python 3.9.6，不引入 pip 依赖。
+- 本机 Apple `strip(1)`：`-S` 去调试符号、`-x` 去本地符号，复制到 app 后、ad-hoc 签名前处理。公用包不得带 .dSYM 或调试源码路径。
+- [Apple 安全打开 App](https://support.apple.com/zh-cn/102445)：说明当前 ad-hoc、未公证，使用正常的单应用打开入口；不提供停用 Gatekeeper 的指令。
+
+验证结果及尚未完成的分发限制见 `docs/public-distribution-verification.md`。
+
+- [Git Trees API](https://docs.github.com/en/rest/git/trees)、[Git Commits API](https://docs.github.com/en/rest/git/commits)、[Git Refs API](https://docs.github.com/en/rest/git/refs)、[Contents API](https://docs.github.com/en/rest/repos/contents)：空仓库先仅用公开 README 初始化，再建立白名单 blob/tree/commit；更新 ref 使用 `force: false`，避免覆盖并发提交。公开 tag 只取公开 main，绝不使用私有源 HEAD。

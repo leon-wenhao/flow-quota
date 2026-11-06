@@ -13,6 +13,7 @@ struct UsageChartData: Equatable {
     let interfaceValues: [UsageChartValue]
     let applicationValues: [UsageChartValue]
     let dailyInterfaceThreshold: Int64?
+    let applicationPie: UsagePieData?
 
     static func make(interfaceUsage: InterfaceUsage?, applications: [ApplicationSnapshot],
                      today: String?, dailyInterfaceThreshold: Int64?, limit: Int = 8) -> UsageChartData {
@@ -40,11 +41,11 @@ struct UsageChartData: Equatable {
                                    label: application.identity.name,
                                    bytes: bytes)
         }
-        .sorted { $0.bytes > $1.bytes }
-        .prefix(max(0, limit))
+        .sorted { $0.bytes == $1.bytes ? $0.id < $1.id : $0.bytes > $1.bytes }
 
         return UsageChartData(interfaceValues: interfaceValues,
-                              applicationValues: Array(applicationValues),
-                              dailyInterfaceThreshold: dailyInterfaceThreshold)
+                              applicationValues: Array(applicationValues.prefix(max(0, limit))),
+                              dailyInterfaceThreshold: dailyInterfaceThreshold,
+                              applicationPie: UsagePieData.make(applicationValues))
     }
 }

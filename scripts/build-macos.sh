@@ -72,6 +72,10 @@ APP="$ROOT/.artifacts/$ARCH/Flow Quota.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Library/LaunchAgents" "$APP/Contents/Resources"
 cp "$BIN/FlowQuota" "$APP/Contents/MacOS/FlowQuota"
 cp "$BIN/FlowQuotaAgent" "$APP/Contents/MacOS/FlowQuotaAgent"
+if [[ "$CONFIG" == release ]]; then
+    # Apple's strip(1): remove debug and local symbols before signing public binaries.
+    xcrun strip -S -x "$APP/Contents/MacOS/FlowQuota" "$APP/Contents/MacOS/FlowQuotaAgent"
+fi
 cp "$ROOT/macos/Configuration/Info.plist" "$APP/Contents/Info.plist"
 /usr/bin/plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
 /usr/bin/plutil -replace CFBundleVersion -string "$BUILD_NUMBER" "$APP/Contents/Info.plist"
@@ -81,13 +85,21 @@ cp "$ROOT/macos/Configuration/local.flowquota.agent.plist" "$APP/Contents/Librar
 # NetworkExtension entitlement and is not Developer ID signing/notarization.
 codesign --force --sign - --identifier local.flowquota.agent "$APP/Contents/MacOS/FlowQuotaAgent"
 codesign --force --sign - --identifier local.flowquota.app "$APP"
+codesign --verify --strict "$APP/Contents/MacOS/FlowQuotaAgent"
 codesign --verify --strict "$APP"
+if [[ "$CONFIG" == release ]]; then
+    /usr/bin/python3 "$ROOT/scripts/verify_macos_app.py" --app "$APP" --arch "$ARCH" \
+        --version "$VERSION" --build "$BUILD_NUMBER"
+fi
 echo "Built: $APP (version $VERSION, build $BUILD_NUMBER)"
 
 if $DMG; then
     STAGE="$(mktemp -d "$ROOT/.artifacts/dmg-stage.XXXXXX")"
+    # Only this invocation's temporary staging directory is removed.
+    trap 'rm -rf "$STAGE"' EXIT
     ditto "$APP" "$STAGE/Flow Quota.app"
     ln -s /Applications "$STAGE/Applications"
+    cp "$ROOT/macos/Configuration/INSTALL.txt" "$STAGE/安装说明.txt"
     if [[ -n "$DMG_OUTPUT" ]]; then
         OUTPUT="$DMG_OUTPUT"
         [[ "$OUTPUT" = /* ]] || OUTPUT="$ROOT/$OUTPUT"

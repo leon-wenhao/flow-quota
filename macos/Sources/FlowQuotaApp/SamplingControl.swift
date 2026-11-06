@@ -12,12 +12,12 @@ struct SamplingControl: View {
                     get: { enabled },
                     set: { state.setSamplingEnabled($0) }
                 )) { Text("流量采集") }
-                .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                .labelsHidden().toggleStyle(FlowQuotaToggleStyle()).fixedSize()
                 .disabled(!state.canChangeSampling)
                 .help("开启或暂停接口与应用采集；仅累计已观测流量，暂停不清空今日用量。")
             } else {
                 Button("连接服务") { state.enableAgent() }
-                    .buttonStyle(.bordered).controlSize(.small)
+                    .settingsAction()
                     .disabled(state.busy || state.quitRequested)
                     .help("采集状态未知；连接服务并请求启用采集，以返回状态为准。")
             }

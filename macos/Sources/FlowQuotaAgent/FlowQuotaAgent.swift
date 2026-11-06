@@ -22,6 +22,7 @@ import FlowQuotaStore
             let runtime = AgentRuntime(store: store)
             let startup = Task { @MainActor in
                 try Task.checkCancellation()
+                try await runtime.startRetentionMaintenance()
                 if diagnostic {
                     if let index = CommandLine.arguments.firstIndex(of: "--sample-seconds"),
                        index + 1 < CommandLine.arguments.count,
@@ -66,6 +67,7 @@ import FlowQuotaStore
                 // successful --snapshot output or its normal cleanup path.
                 startup.cancel()
                 _ = await startup.result
+                await runtime.stopRetentionMaintenance()
                 defer {
                     activeListener?.invalidate()
                     activeListener = nil

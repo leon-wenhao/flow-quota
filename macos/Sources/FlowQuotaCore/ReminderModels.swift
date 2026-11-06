@@ -14,7 +14,9 @@ public struct ReminderNotification: Codable, Sendable, Identifiable {
     public let limitBytes: Int64
 
     public var id: String {
-        "flowquota:\(key.identity.day):\(key.identity.ruleVersion):\(key.kind.rawValue):\(key.identity.appKey)"
+        // Retain legacy metered identifiers across upgrades; ordinary has its own namespace.
+        let category = key.category == .ordinary ? "ordinary:" : ""
+        return "flowquota:\(category)\(key.identity.day):\(key.identity.ruleVersion):\(key.kind.rawValue):\(key.identity.appKey)"
     }
 
     public init(key: QuotaNotificationKey, appName: String, usedBytes: Int64, limitBytes: Int64) {

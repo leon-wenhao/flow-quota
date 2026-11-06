@@ -43,6 +43,31 @@ import ServiceManagement
                     throw TrafficAlertError.invalidEvent
                 }
                 for event in history { try event.validate() }
+                guard let categories = second.trafficCategories,
+                      categories.count == TrafficCategory.allCases.count,
+                      Set(categories.map(\.category)) == Set(TrafficCategory.allCases) else {
+                    throw PlatformError.unavailable("服务尚未提供完整的两类网络账本。")
+                }
+                for data in categories {
+                    try data.trafficAlertPolicy.validate()
+                    let page = try await client.fetchTrafficAlertHistory(day: day, offset: 0, category: data.category)
+                    guard page.count <= 32, page.allSatisfy({ $0.day == day && $0.category == data.category }) else {
+                        throw TrafficAlertError.invalidEvent
+                    }
+                    for event in page { try event.validate() }
+                }
+                // Exercise the same bounded query as the chart without starting collection.
+                let chartStart = Calendar.current.startOfDay(for: Date())
+                let chartEnd = Date(timeIntervalSince1970: ceil(Date().timeIntervalSince1970 / 60) * 60)
+                for category in TrafficCategory.allCases {
+                    let query = ApplicationTimelineQuery(day: day, category: category, start: chartStart, end: chartEnd)
+                    let timeline = try await client.fetchApplicationTimeline(query)
+                    guard timeline.query == query, timeline.buckets.count <= ApplicationUsageTimeline.maximumRows,
+                          ApplicationTimelinePresentation.make(timeline) != nil else {
+                        throw PlatformError.malformedReply
+                    }
+                }
+                let ordinary = categories.first { $0.category == .ordinary }!.trafficAlertPolicy
                 // Only status metadata; never dump application paths, usage or rules.
                 let result = Result(bundlePath: Bundle.main.bundlePath,
                     serviceStatus: SMAppService.agent(plistName: AgentEndpoint.launchAgentPlist).status.rawValue,
@@ -50,7 +75,9 @@ import ServiceManagement
                     generatedAt: second.generatedAt, sampledAt: second.sampledAt,
                     interfaceSampledAt: second.interfaceSampledAt, pausedCheck: paused,
                     trafficAlertPolicyVersion: policy.version, trafficAlertCount: second.trafficAlertEvents.count,
-                    pendingTrafficAlertCount: second.pendingTrafficAlerts.count, historyPageCount: history.count)
+                    pendingTrafficAlertCount: second.pendingTrafficAlerts.count, historyPageCount: history.count,
+                    trafficCategories: categories.map { $0.category.rawValue },
+                    ordinaryRemindersEnabled: TrafficAlertKind.allCases.contains { ordinary.threshold(for: $0) != nil })
                 let encoder = JSONEncoder()
                 encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
                 encoder.dateEncodingStrategy = .iso8601
@@ -81,5 +108,7 @@ import ServiceManagement
         let trafficAlertCount: Int
         let pendingTrafficAlertCount: Int
         let historyPageCount: Int
+        let trafficCategories: [String]
+        let ordinaryRemindersEnabled: Bool
     }
 }

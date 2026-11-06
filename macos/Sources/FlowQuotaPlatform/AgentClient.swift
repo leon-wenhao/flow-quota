@@ -53,8 +53,29 @@ import ServiceManagement
         return state
     }
 
+    public func fetchApplicationTimeline(_ query: ApplicationTimelineQuery) async throws -> ApplicationUsageTimeline {
+        guard case .applicationTimeline(let timeline) = try await send(.applicationTimeline(query)),
+              timeline.query == query else { throw PlatformError.malformedReply }
+        return timeline
+    }
+
     public func saveRule(appKey: String, rule: QuotaRule) async throws {
         try await requireAcknowledgement(.saveRule(appKey: appKey, rule: rule))
+    }
+
+    public func saveRule(appKey: String, rule: QuotaRule, category: TrafficCategory) async throws {
+        try await requireAcknowledgement(.saveCategoryRule(category: category, appKey: appKey, rule: rule))
+    }
+
+    public func saveTrafficAlertPolicy(_ policy: TrafficAlertPolicy, category: TrafficCategory) async throws {
+        try await requireAcknowledgement(.saveCategoryTrafficAlertPolicy(category: category, policy: policy))
+    }
+
+    public func fetchTrafficAlertHistory(day: String, offset: Int, category: TrafficCategory) async throws -> [TrafficAlertEvent] {
+        guard case .trafficAlertHistory(let events) = try await send(.categoryTrafficAlertHistory(category: category, day: day, offset: offset)) else {
+            throw PlatformError.malformedReply
+        }
+        return events
     }
 
     public func setHotspotOverride(_ marked: Bool) async throws {

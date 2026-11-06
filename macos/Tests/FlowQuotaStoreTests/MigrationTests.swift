@@ -39,7 +39,7 @@ struct MigrationTests {
                                           bytes: 10, ruleVersion: 3, expiresAt: fixture.expiry)
         try await store.close()
         let check = try SQLiteConnection(path: fixture.path)
-        #expect(try check.scalar("PRAGMA user_version") == 4)
+        #expect(try check.scalar("PRAGMA user_version") == 7)
         #expect(try check.scalar("SELECT COUNT(*) FROM budget_leases") == 1)
         #expect(try check.scalar("SELECT COUNT(*) FROM daily_interface_usage") == 0)
         try check.close()
@@ -83,7 +83,10 @@ struct MigrationTests {
             _ = try fixture.open()
             Issue.record("Foreign-key corruption must not be silently accepted")
         } catch let error as StoreError {
-            guard case .configuration = error else { throw error }
+            switch error {
+            case .configuration, .sqlite(code: 787, message: _): break
+            default: throw error
+            }
         }
         #expect(try old.scalar("PRAGMA user_version") == 1)
         #expect(try old.scalar("SELECT COUNT(*) FROM sqlite_master WHERE name = 'budget_leases'") == 0)
@@ -139,7 +142,7 @@ struct MigrationTests {
         #expect(try await store.interfaceUsage(day: "2026-11-04") == nil)
         try await store.close()
         let check = try SQLiteConnection(path: fixture.path)
-        #expect(try check.scalar("PRAGMA user_version") == 4)
+        #expect(try check.scalar("PRAGMA user_version") == 7)
         #expect(try check.scalar("SELECT COUNT(*) FROM daily_interface_usage") == 0)
         #expect(try check.scalar("SELECT COUNT(*) FROM budget_leases WHERE lease_id = 'old-lease'") == 1)
         try check.close()
@@ -165,7 +168,7 @@ struct MigrationTests {
         #expect(try await store.loadRules()["legacy"]?.version == 3)
         try await store.close()
         let check = try SQLiteConnection(path: fixture.path)
-        #expect(try check.scalar("PRAGMA user_version") == 4)
+        #expect(try check.scalar("PRAGMA user_version") == 7)
         try check.close()
     }
 

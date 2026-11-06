@@ -13,17 +13,18 @@ struct FullRowDisclosureStyle: DisclosureGroupStyle {
                         .accessibilityHidden(true)
                     configuration.label.frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
+                .padding(.horizontal, 8).padding(.vertical, 7)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(FlowQuotaRowButtonStyle())
             .accessibilityValue(configuration.isExpanded ? "已展开" : "已收起")
             .accessibilityHint(configuration.isExpanded ? "收起内容" : "展开内容")
             if configuration.isExpanded {
                 // Keep nested disclosures on the same full-row interaction style.
                 configuration.content
                     .disclosureGroupStyle(FullRowDisclosureStyle())
-                    .padding(.leading, 18).padding(.top, 6)
+                    .padding(.leading, 16).padding(.top, 8)
             }
         }
     }

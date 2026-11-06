@@ -101,7 +101,7 @@ private func count(_ up: UInt64, _ down: UInt64) -> InterfaceCounterSnapshot {
     try await store.close()
 }
 
-@Test func ordinaryAmbiguousAndStoppedInterfaceMetersNeverReadSystemCounters() async throws {
+@Test func unknownAmbiguousAndStoppedInterfaceMetersNeverReadSystemCounters() async throws {
     let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: folder) }
@@ -109,7 +109,7 @@ private func count(_ up: UInt64, _ down: UInt64) -> InterfaceCounterSnapshot {
     let fixture = InterfaceFixture([])
     let runtime = AgentRuntime(store: store, interfaceReader: fixture,
                                networkObservation: { fixture.path() })
-    for path in [NetworkObservation(state: .ordinary, message: "", interfaceIndexes: [4]),
+    for path in [NetworkObservation(state: .unknown, message: "", interfaceIndexes: [4]),
                  NetworkObservation(state: .expensive, message: "", interfaceIndexes: [4, 5]),
                  NetworkObservation(state: .expensive, message: "", interfaceIndexes: [])] {
         fixture.update(path)
@@ -160,5 +160,41 @@ private func count(_ up: UInt64, _ down: UInt64) -> InterfaceCounterSnapshot {
     #expect(await runtime.interfaceTask == nil)
     #expect(fixture.readCount == 1)
     #expect(await runtime.interfaceMessage.contains("已暂停"))
+    try await store.close()
+}
+
+@Test func timeSummariesUseOnlyMeasuredIntervalsAndKeepNetworkCategoryAndGapsSeparate() async throws {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let store = try QuotaStore(path: folder.appendingPathComponent("quota.sqlite").path)
+    let fixture = InterfaceFixture([count(100, 200), count(110, 220), count(999, 999),
+                                    count(999, 999), count(2_000, 2_000), count(2_003, 2_004)])
+    let runtime = AgentRuntime(store: store, interfaceReader: fixture, networkObservation: { fixture.path() })
+    let start = Calendar.current.startOfDay(for: Date()).addingTimeInterval(3_600)
+    let day = try LocalDay.key(for: start, in: .current)
+    for (seconds, nanos) in [(0.0, UInt64(1)), (2, 2_000_000_001),
+                             (20, 20_000_000_001), (22, 22_000_000_001)] {
+        await runtime.sampleInterface(path: fixture.path(), generation: 0,
+                                      now: start.addingTimeInterval(seconds), uptime: nanos)
+    }
+    let metered = try await store.interfaceUsageMinutes(day: day, category: .metered)
+    #expect(metered.count == 1)
+    #expect(metered.first?.sampleCount == 2) // two baselines excluded, measured zero retained
+    #expect(metered.first?.uploadedBytes == 10)
+    #expect(metered.first?.downloadedBytes == 20)
+    fixture.update(NetworkObservation(state: .ordinary, message: "", generation: 2, interfaceIndexes: [4]))
+    for (seconds, nanos) in [(24.0, UInt64(24_000_000_001)), (26, 26_000_000_001)] {
+        await runtime.sampleInterface(path: fixture.path(), generation: 0,
+                                      now: start.addingTimeInterval(seconds), uptime: nanos)
+    }
+    let ordinary = try await store.interfaceUsageMinutes(day: day, category: .ordinary)
+    #expect(ordinary.first?.sampleCount == 1)
+    #expect(ordinary.first?.uploadedBytes == 3)
+    #expect(ordinary.first?.downloadedBytes == 4)
+    #expect(try await store.interfaceUsageMinutes(day: day, category: .metered) == metered)
+    let snapshot = try await runtime.snapshot()
+    #expect(snapshot.usage(for: .ordinary)?.interfaceUsageMinutes == ordinary)
+    #expect(snapshot.usage(for: .metered)?.interfaceUsageMinutes == metered)
     try await store.close()
 }

@@ -17,7 +17,7 @@ struct MonitoringBanner: View {
                 .font(.headline)
                 Spacer()
                 Button { state.refreshOnce() } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .buttonStyle(FlowQuotaIconButtonStyle())
                     .accessibilityLabel("刷新采样状态").help("刷新采样状态")
                     .disabled(state.busy || state.refreshing)
             }

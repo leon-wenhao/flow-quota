@@ -63,7 +63,7 @@ final class SharedVectorTests: XCTestCase {
             } else {
                 let value = try QuotaEvaluator.evaluate(rule: rule, usage: usage, network: vector.network)
                 XCTAssertEqual(value.status.rawValue, vector.expectedStatus, vector.id)
-                XCTAssertEqual(value.countsTraffic, vector.network == .hotspot || vector.network == .expensive, vector.id)
+                XCTAssertEqual(value.countsTraffic, vector.network != .unknown, vector.id)
                 XCTAssertEqual(value.remainingBytes, try vector.expectedRemainingBytes.map(bytes), vector.id)
                 XCTAssertEqual(value.warningThresholdBytes, try vector.expectedThresholdBytes.map(bytes), vector.id)
             }
