@@ -1,6 +1,7 @@
 """Offline tests: /usr/bin/python3 -B -m unittest discover -s scripts/tests -v."""
 
 import hashlib
+import base64
 import importlib.util
 import json
 from pathlib import Path
@@ -23,6 +24,22 @@ TAG = "v1.2.3"
 
 class ReleaseBundleTests(unittest.TestCase):
     def setUp(self):
+        # Only the Keychain/signing boundary is mocked. XML, release metadata,
+        # paths, checksums and whitelist validation remain real.
+        signature = base64.b64encode(bytes(64)).decode()
+        def signed_feed(path, tool):
+            data = path.read_bytes()
+            path.write_bytes(data + ("<!-- sparkle-signatures:\nedSignature: " + signature +
+                "\nlength: " + str(len(data)) + "\n-->\n").encode())
+        for name, options in (
+            ("signer", {"return_value": "test-signer"}),
+            ("sign_archive", {"return_value": signature}),
+            ("sign_feed", {"side_effect": signed_feed}),
+            ("verify_signatures", {"return_value": None}),
+        ):
+            patcher = mock.patch.object(bundle.sparkle_feed, name, **options)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -66,7 +83,7 @@ class ReleaseBundleTests(unittest.TestCase):
         self.assertEqual(manifest["schemaVersion"], 2)
         self.assertEqual(manifest["build"], BUILD)
         self.assertEqual([p.name for p in paths], self.names + list(bundle.METADATA))
-        self.assertEqual(len(paths), 6)
+        self.assertEqual(len(paths), 8)
         self.assertTrue(all(p.is_file() for p in paths))
         release_url = "https://github.com/{}/releases/tag/{}".format(REPO, TAG)
         self.assertEqual(manifest["downloadURL"], release_url)
@@ -93,6 +110,19 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertIn(text, notes)
         self.assertNotIn("xattr", notes)
         self.assertNotIn("spctl", notes)
+
+    def test_feed_architecture_version_and_signature_are_required(self):
+        path = self.output / "appcast-arm64.xml"
+        original = path.read_bytes()
+        for bad in (original.replace(b"arm64.dmg", b"x86_64.dmg"),
+                    original.replace(b"1.2.3", b"9.9.9"),
+                    original.split(b"<!-- sparkle-signatures:")[0],
+                    original + b"<extra/>"):
+            path.write_bytes(bad)
+            self.reject()
+        path.write_bytes(original)
+        bundle.validate_bundle(self.output, REPO)
+        self.assertEqual(len(bundle.sparkle_feed.verify_signatures.call_args.args[0]), 4)
 
     def test_version_build_and_minimum_are_strict(self):
         for version in ("1.2", "01.2.3", "v1.2.3", "1.2.3\n", "../1.2.3", 123):
@@ -235,26 +265,27 @@ class ReleaseBundleTests(unittest.TestCase):
             bundle.validate_bundle(link, REPO)
 
     def test_chunked_hashing_and_duplicate_json(self):
+        read_bytes = Path.read_bytes
+        def read_metadata(path):
+            if path.suffix == ".dmg":
+                raise AssertionError("Must hash DMGs in chunks")
+            return read_bytes(path)
         with mock.patch.object(bundle, "CHUNK_SIZE", 3), mock.patch.object(
-                Path, "read_bytes", side_effect=AssertionError("Must hash in chunks")):
+                Path, "read_bytes", read_metadata):
             self.prepare()
         path = self.output / "update-manifest.json"
         path.write_text(path.read_text().replace('"build": 18', '"build": 18, "build": 18'))
         self.reject()
 
-    def test_cli_prepare_validate_and_failure(self):
-        common = [sys.executable, "-B", str(SCRIPT)]
-        for args in (["prepare", "--source-commit", "a" * 40, "--source-manifest", str(self.source), "--version", VERSION,
-                      "--build", str(BUILD)], ["validate"]):
-            result = subprocess.run(common + args + ["--output", str(self.output), "--repo", REPO],
-                                    capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn(TAG, result.stdout)
-        result = subprocess.run(common + ["validate", "--output", str(self.output),
-                                         "--repo", "other/repo"], capture_output=True, text=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("release bundle:", result.stderr)
-        self.assertNotIn("Traceback", result.stderr)
+    def test_cli_rejects_invalid_signature_and_wrong_repository(self):
+        # Public validation needs no private key. Zero signatures used by unit
+        # fixtures must be rejected by the real subprocess verification boundary.
+        common = [sys.executable, "-B", str(SCRIPT), "validate", "--output", str(self.output)]
+        for repo in (REPO, "other/repo"):
+            result = subprocess.run(common + ["--repo", repo], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("release bundle:", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
 
 
 if __name__ == "__main__":

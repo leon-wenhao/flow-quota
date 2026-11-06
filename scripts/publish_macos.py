@@ -63,7 +63,19 @@ def activate_manifest(bundle, repo, tag):
         new_version = tuple(map(int, manifest["version"].split(".")))
         if old_version > new_version:
             raise ValueError("Refusing to roll back the latest release")
-    # latest/download/update-manifest.json is activated only after the complete release is verified.
+        if old_version < new_version:
+            # Sparkle orders CFBundleVersion, independently of the marketing
+            # version. A reset build would make a published update invisible.
+            candidates = [item for item in latest.get("assets", [])
+                          if item.get("name") == "update-manifest.json"]
+            if len(candidates) != 1 or type(candidates[0].get("id")) is not int:
+                raise ValueError("Latest release is missing its update manifest")
+            old = json.loads(run("gh", "api", "-H", "Accept: application/octet-stream",
+                "repos/{}/releases/assets/{}".format(repo, candidates[0]["id"])))
+            if (not isinstance(old, dict) or old.get("version") != latest["tag_name"][1:] or type(old.get("build")) is not int
+                    or old["build"] <= 0 or manifest["build"] <= old["build"]):
+                raise ValueError("Sparkle requires a strictly increasing internal build")
+    # Latest attachment URLs are activated only after the complete release is verified.
     run("gh", "release", "edit", tag, "--repo", repo, "--latest")
 
 
@@ -96,7 +108,7 @@ def publish(bundle, repo, activate):
     print("Published: https://github.com/{}/releases/tag/{}".format(repo, tag))
     if activate:
         activate_manifest(bundle, repo, tag)
-        print("Activated latest Release update-manifest.json")
+        print("Activated latest Release appcasts and update-manifest.json")
     else:
         print("Manifest not activated; rerun with --activate-manifest after review")
 

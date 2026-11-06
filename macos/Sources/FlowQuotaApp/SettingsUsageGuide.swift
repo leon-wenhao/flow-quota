@@ -30,8 +30,8 @@ struct SettingsUsageGuide: View {
             }
             SettingsSection(title: "软件更新") {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("更新检查只在点击按钮时执行，不在后台自动检查或自动替换。")
-                    Text("下载完成后会打开 DMG，将应用拖到 Applications 后再打开。首次启动若被系统拦截，请到“系统设置 → 隐私与安全性”选择“仍要打开”。")
+                    Text("更新检查只在点击按钮时执行。发现新版后由更新窗口下载安装，确认后自动替换并重启。")
+                    Text("首次安装使用 DMG 拖拽到 Applications；后续更新无需再次拖拽。当前为 ad-hoc 签名、未公证，系统仍可能要求权限或到“隐私与安全性”选择“仍要打开”。更新保留规则和当天累计，重启期间流量不补算。")
                 }
             }
         }

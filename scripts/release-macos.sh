@@ -71,6 +71,7 @@ PY
 [[ -n "$OUTPUT_DIR" ]] || OUTPUT_DIR="$ROOT/.artifacts/releases/FlowQuota-$VERSION-build-$BUILD"
 [[ "$OUTPUT_DIR" = /* ]] || OUTPUT_DIR="$ROOT/$OUTPUT_DIR"
 [[ ! -e "$OUTPUT_DIR" ]] || { echo "Output already exists; choose a new directory." >&2; exit 1; }
+"$ROOT/scripts/sparkle-tools.sh" >/dev/null
 SOURCE_COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
 mkdir -p "$OUTPUT_DIR"
 "$ROOT/scripts/build-macos.sh" --release --arm64 --dmg-output "$OUTPUT_DIR/FlowQuota-$VERSION-arm64.dmg"

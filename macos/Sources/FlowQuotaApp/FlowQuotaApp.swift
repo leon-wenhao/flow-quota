@@ -52,12 +52,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if state.notifications.available {
             UNUserNotificationCenter.current().delegate = notificationDelegate
         }
-        monitor.start()
+        Task { @MainActor [self] in
+            await state.updater.start(canPrepare: { [weak self] in self?.state.busy == false },
+                suspend: { [weak self] in self?.monitor.stop() },
+                resume: { [weak self] in self?.monitor.start() },
+                showRecovery: { [weak self] in self?.preferences.show(.general) })
+            monitor.start()
+        }
         guard ProcessInfo.processInfo.arguments.contains("--window") else { return }
         preferences.show()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if state.updater.readyToTerminate { return .terminateNow }
+        if state.updater.installing || state.updater.recovering || state.updater.needsRecovery {
+            let alert = NSAlert()
+            alert.messageText = "更新交接尚未完成"
+            alert.informativeText = state.updater.errorMessage ?? "请等待安装准备完成，或到软件更新中恢复服务状态。"
+            alert.runModal()
+            return .terminateCancel
+        }
+
+        if state.updater.hasStagedUpdate {
+            guard !waitingForStop else { return .terminateLater }
+            waitingForStop = true
+            Task { @MainActor [self] in
+                let allowed = await state.updater.prepareForTermination()
+                waitingForStop = false
+                if !allowed { preferences.show(.general) }
+                sender.reply(toApplicationShouldTerminate: allowed)
+            }
+            return .terminateLater
+        }
+
         // A first launch with no registered service has no collector to stop. Do not
         // trap the user in an app that has never been enabled.
         if !state.everConnected, !state.busy,

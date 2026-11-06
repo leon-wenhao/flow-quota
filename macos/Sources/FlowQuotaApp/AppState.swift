@@ -20,12 +20,9 @@ final class AppState {
     private(set) var connectionError: String?
     private(set) var notice: String?
     private(set) var quitRequested = false
-    private(set) var updateState: UpdateCheckState = .idle
-    private(set) var lastUpdateCheckAt: Date?
-    private(set) var downloadedUpdateURL: URL?
+    let updater = AppUpdater()
     @ObservationIgnored let client: any AgentServiceClient
     @ObservationIgnored private var actionTask: Task<Void, Never>?
-    @ObservationIgnored private var updateTask: Task<Void, Never>?
     @ObservationIgnored private var refreshGeneration = 0
     @ObservationIgnored private var expiryTask: Task<Void, Never>?
 
@@ -36,12 +33,8 @@ final class AppState {
         trafficAlertDelivery = TrafficAlertDelivery(client: client, scheduler: scheduler)
     }
 
-    var busy: Bool { operation != nil }
-    var updateChecking: Bool { updateState == .checking }
-    var currentVersionText: String {
-        let version = AppVersion.current
-        return version.marketingString
-    }
+    var busy: Bool { operation != nil || updater.installing || updater.recovering }
+    var currentVersionText: String { updater.currentVersion }
     var canConfigureNetwork: Bool { connected && snapshotIsCurrent && !busy && !quitRequested }
     var canEdit: Bool { canConfigureNetwork && (selectedTrafficCategory == .metered || categorySnapshot != nil) }
     var snapshotIsCurrent: Bool {
@@ -143,42 +136,6 @@ final class AppState {
     func refreshOnce() {
         guard !busy, !refreshing else { return }
         Task { await refresh() }
-    }
-
-    func checkForUpdates() {
-        guard !updateChecking else { return }
-        updateState = .checking
-        let current = AppVersion.current
-        let system = ProcessInfo.processInfo.operatingSystemVersion
-        let systemVersion = try? AppVersion(version: "\(system.majorVersion).\(system.minorVersion).\(system.patchVersion)")
-        updateTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer { self.updateTask = nil }
-            do {
-                let result = try await UpdateChecker().check(current: current, systemVersion: systemVersion)
-                guard !Task.isCancelled else { return }
-                self.lastUpdateCheckAt = Date()
-                switch result {
-                case .upToDate:
-                    self.updateState = .upToDate
-                case .available(let release):
-                    self.updateState = .available(release)
-                }
-            } catch {
-                guard !Task.isCancelled else { return }
-                self.lastUpdateCheckAt = Date()
-                self.updateState = .failed("检查更新失败：\(error.localizedDescription)")
-            }
-        }
-    }
-
-    func downloadAndInstall(_ release: UpdateRelease) {
-        downloadedUpdateURL = nil
-        perform("正在下载更新") { state in
-            let path = try await UpdateInstaller.downloadAndOpen(release)
-            state.downloadedUpdateURL = path
-            state.notice = "更新包已下载并打开。请将 Flow Quota.app 拖到 Applications 文件夹。首次打开若被拦截，请到系统设置的隐私与安全性中选择“仍要打开”。"
-        }
     }
 
     func enableAgent() {

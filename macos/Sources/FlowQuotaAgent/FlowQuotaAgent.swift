@@ -49,6 +49,8 @@ import FlowQuotaStore
                         throw PlatformError.unavailable("暂停启动自检只适用于开发构建。")
                     }
                     _ = try await runtime.handle(.stopProtection)
+                } else if UpdateResumeStore().hasPendingInstallation {
+                    _ = try await runtime.handle(.stopProtection)
                 } else {
                     _ = try await runtime.handle(.startMonitoring)
                 }

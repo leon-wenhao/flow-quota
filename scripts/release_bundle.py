@@ -13,11 +13,13 @@ import json
 from pathlib import Path
 import re
 import stat
+import subprocess
 import sys
+import sparkle_feed
 
 
 ARCHITECTURES = ("arm64", "x86_64")
-METADATA = ("SHA256SUMS", "update-manifest.json", "release-manifest.json", "RELEASE-NOTES.md")
+METADATA = ("SHA256SUMS", "update-manifest.json", "release-manifest.json", "RELEASE-NOTES.md", *sparkle_feed.FEEDS)
 CHUNK_SIZE = 1024 * 1024
 MAX_INT = 2**63 - 1
 NUMBER = r"(?:0|[1-9][0-9]*)"
@@ -122,13 +124,20 @@ Flow Quota 在 macOS 菜单栏提供流量采样统计、应用用量分析和�
 “仍要打开”，按系统提示确认。本文不提供绕过安全检查的命令；
 如果系统未提供该选项或仍拒绝启动，请保留提示信息并反馈。
 首次使用时允许通知；通知权限失败可在应用中查看。
+
+## 后续更新
+
+在应用中点击“检查更新”，确认后下载安装并自动替换、重启，无需再次拖拽。
+更新源和安装包使用 Ed25519 签名校验；不在后台自动检查或下载。
+旧版若仍提示打开 DMG，请手动安装一次本版本，之后可使用应用内替换。
 """.format(version=version, build=build, minimum=minimum)
 
 
 def prepare_bundle(output, source_manifest, repo, version, build, source_commit):
-    """Generate four public metadata files beside two existing DMGs, then validate.
+    """Generate six public metadata files beside two existing DMGs, then validate.
 
-    Raises ValueError/OSError for invalid inputs; does not build or upload anything.
+    Raises ValueError/OSError for invalid inputs; signs using the local Keychain,
+    verifies using the committed public key; does not build or upload anything.
     Source identity must match the explicit release arguments. Other source fields
     are intentionally never copied. Only the explicit source_commit is recorded for tag verification.
     """
@@ -166,11 +175,12 @@ def prepare_bundle(output, source_manifest, repo, version, build, source_commit)
     _write_json(output / "release-manifest.json", release)
     (output / "SHA256SUMS").write_text(_checksums(assets), encoding="utf-8")
     (output / "RELEASE-NOTES.md").write_text(_notes(version, build, minimum), encoding="utf-8")
+    sparkle_feed.prepare(output, manifest)
     return validate_bundle(output, repo)
 
 
 def validate_bundle(output, repo):
-    """Return (schema-2 update dict, six explicit Path objects) for a valid bundle.
+    """Return (schema-2 update dict, eight explicit Path objects) for a valid bundle.
 
     Raises ValueError/OSError on failure. All paths are regular files from a fixed
     allowlist; callers must keep the directory unchanged between validation/upload.
@@ -233,6 +243,7 @@ def validate_bundle(output, repo):
              "SHA256SUMS mismatch")
     _require((output / "RELEASE-NOTES.md").read_text(encoding="utf-8") == _notes(version, build, minimum),
              "Release notes differ from public template")
+    sparkle_feed.validate(output, manifest)
     return manifest, [output / name for name in names + list(METADATA)]
 
 
@@ -256,7 +267,7 @@ def main(argv=None):
                                               args.version, int(args.build), args.source_commit)
         else:
             manifest, assets = validate_bundle(args.output, args.repo)
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, "release bundle: {}\n".format(error))
     print("Validated v{}: {} assets".format(manifest["version"], len(assets)))
     return 0

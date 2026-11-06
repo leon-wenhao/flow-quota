@@ -69,6 +69,8 @@ xcrun swift build "${PACKAGE_OPTIONS[@]}" --scratch-path "$SCRATCH" \
 BIN="$(xcrun swift build "${PACKAGE_OPTIONS[@]}" --scratch-path "$SCRATCH" \
     --disable-sandbox --configuration "$CONFIG" --arch "$ARCH" --show-bin-path)"
 APP="$ROOT/.artifacts/$ARCH/Flow Quota.app"
+# Recreate only this generated app; stale embedded files must not survive rebuilds.
+rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Library/LaunchAgents" "$APP/Contents/Resources"
 cp "$BIN/FlowQuota" "$APP/Contents/MacOS/FlowQuota"
 cp "$BIN/FlowQuotaAgent" "$APP/Contents/MacOS/FlowQuotaAgent"
@@ -81,12 +83,19 @@ cp "$ROOT/macos/Configuration/Info.plist" "$APP/Contents/Info.plist"
 /usr/bin/plutil -replace CFBundleVersion -string "$BUILD_NUMBER" "$APP/Contents/Info.plist"
 cp "$ROOT/assets/brand/FlowQuota.icns" "$APP/Contents/Resources/FlowQuota.icns"
 cp "$ROOT/macos/Configuration/local.flowquota.agent.plist" "$APP/Contents/Library/LaunchAgents/"
+/usr/bin/plutil -replace SUFeedURL -string "https://github.com/leon-wenhao/flow-quota/releases/latest/download/appcast-$ARCH.xml" "$APP/Contents/Info.plist"
+SPARKLE="$SCRATCH/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+mkdir -p "$APP/Contents/Frameworks"
+# Preserve the checksum-locked vendor signatures, including all nested helpers.
+/usr/bin/ditto "$SPARKLE" "$APP/Contents/Frameworks/Sparkle.framework"
+cp "$SCRATCH/checkouts/Sparkle/LICENSE" "$APP/Contents/Resources/Sparkle-LICENSE.txt"
+/usr/bin/python3 "$ROOT/scripts/verify_sparkle.py" "$APP/Contents/Frameworks/Sparkle.framework"
 # Local ad-hoc identity enables exact-binary XPC verification; it grants no
 # NetworkExtension entitlement and is not Developer ID signing/notarization.
 codesign --force --sign - --identifier local.flowquota.agent "$APP/Contents/MacOS/FlowQuotaAgent"
 codesign --force --sign - --identifier local.flowquota.app "$APP"
 codesign --verify --strict "$APP/Contents/MacOS/FlowQuotaAgent"
-codesign --verify --strict "$APP"
+codesign --verify --deep --strict "$APP"
 if [[ "$CONFIG" == release ]]; then
     /usr/bin/python3 "$ROOT/scripts/verify_macos_app.py" --app "$APP" --arch "$ARCH" \
         --version "$VERSION" --build "$BUILD_NUMBER"

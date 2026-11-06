@@ -48,7 +48,7 @@ open ".artifacts/arm64/Flow Quota.app" --args --window
 
 ## 发布
 
-源码仓库按 MIT 公开，安装包和公开资料使用独立的 `leon-wenhao/flow-quota` 仓库。流程见 [公开分发方案](docs/public-distribution-plan.md) 与 [macOS 发布流程](docs/release-macos.md)。使用 `scripts/set-version.sh` 同步版本号；通过 `scripts/public_repository.py` 同步公开资料后，运行 `scripts/release-macos.sh --publish --activate-manifest`，核对双架构 DMG 后发布并激活公开更新清单。客户端只在设置页点击“检查更新”时访问更新清单；发现更新后可下载并打开 DMG，用户手动将应用拖入 Applications。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，首次打开可能需要在系统设置的隐私与安全性中选择“仍要打开”。
+源码、文档和安装包统一在 `leon-wenhao/flow-quota` 公开，源码采用 MIT，DMG 只作为 Releases 附件。流程见 [公开分发方案](docs/public-distribution-plan.md)、[macOS 发布流程](docs/release-macos.md) 和 [应用内更新设计](docs/in-app-updates.md)。使用 `scripts/set-version.sh` 同步版本，提交并推送后执行 `scripts/release-macos.sh --publish --activate-manifest`。客户端仅在点击“检查更新”时联网，确认后由 Sparkle 校验、替换并重启，无需再次拖拽应用。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，系统仍可能要求额外确认。
 
 ## 首次使用与验证
 

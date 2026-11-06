@@ -10,7 +10,7 @@ import ServiceManagement
         try await registerAgent(startMonitoring: true)
     }
 
-    private func registerAgent(startMonitoring: Bool, replacingRegistration: Bool = false) async throws {
+    func registerAgent(startMonitoring: Bool, replacingRegistration: Bool = false) async throws {
         // Validate the embedded helper before changing any system registration.
         _ = try helperRequirement()
         let service = SMAppService.agent(plistName: AgentEndpoint.launchAgentPlist)
@@ -107,7 +107,7 @@ import ServiceManagement
         try await requireAcknowledgement(.stopProtection)
     }
 
-    private func requireAcknowledgement(_ request: AgentRequest) async throws {
+    func requireAcknowledgement(_ request: AgentRequest) async throws {
         guard case .acknowledged = try await send(request) else {
             throw PlatformError.malformedReply
         }

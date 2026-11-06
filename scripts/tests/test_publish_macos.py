@@ -24,7 +24,8 @@ class PublisherTests(unittest.TestCase):
         self.bundle = Path(temporary.name).resolve()
         self.assets = [self.bundle / name for name in (
             "FlowQuota-1.2.3-arm64.dmg", "FlowQuota-1.2.3-x86_64.dmg", "SHA256SUMS",
-            "update-manifest.json", "release-manifest.json", "RELEASE-NOTES.md")]
+            "update-manifest.json", "release-manifest.json", "RELEASE-NOTES.md",
+            "appcast-arm64.xml", "appcast-x86_64.xml")]
         for path in self.assets:
             path.write_bytes(("offline fixture " + path.name).encode())
         (self.bundle / "release-manifest.json").write_text(json.dumps({"sourceCommit": COMMIT}))
@@ -153,7 +154,9 @@ class PublisherTests(unittest.TestCase):
 
     def test_latest_activation_rejects_rollback_and_accepts_first_same_or_older_release(self):
         self.release.return_value = {"id": 42, "draft": False}
-        for latest in (None, {"tag_name": TAG}, {"tag_name": "v1.2.2"}):
+        self.run.side_effect = lambda *args, **kw: json.dumps({"version": "1.2.2", "build": 6}) if args[:2] == ("gh", "api") else ""
+        for latest in (None, {"tag_name": TAG}, {"tag_name": "v1.2.2", "assets": [
+                {"name": "update-manifest.json", "id": 10}]}):
             self.run.reset_mock()
             self.api.side_effect = [self.remote_assets(), latest]
             self.real_activate(self.bundle, REPO, TAG)
@@ -162,6 +165,17 @@ class PublisherTests(unittest.TestCase):
             self.run.reset_mock()
             self.api.side_effect = [self.remote_assets(), {"tag_name": tag}]
             with self.assertRaises(ValueError):
+                self.real_activate(self.bundle, REPO, TAG)
+            self.assertEqual(self.commands(), [])
+
+    def test_sparkle_build_must_increase_before_latest_activation(self):
+        self.release.return_value = {"id": 42, "draft": False}
+        latest = {"tag_name": "v1.2.2", "assets": [{"name": "update-manifest.json", "id": 10}]}
+        for build in (7, 8):
+            self.run.reset_mock()
+            self.run.return_value = json.dumps({"version": "1.2.2", "build": build})
+            self.api.side_effect = [self.remote_assets(), latest]
+            with self.assertRaisesRegex(ValueError, "strictly increasing"):
                 self.real_activate(self.bundle, REPO, TAG)
             self.assertEqual(self.commands(), [])
 
