@@ -40,7 +40,7 @@ git push origin main
 保留原 bundle，重试以下命令，不重新构建或覆盖正式附件：
 
 ```bash
-python3 scripts/publish_macos.py   --bundle .artifacts/releases/FlowQuota-0.1.5-build-26   --activate-manifest
+python3 scripts/publish_macos.py   --bundle .artifacts/releases/FlowQuota-0.1.7-build-28   --activate-manifest
 ```
 
 草稿只补传缺失项，已上传项必须摘要相同；正式版仅核验，不使用 `--clobber`。若正式版已发布但 latest 激活失败，重复命令只会核对并恢复激活。源码或附件有变动时递增版本号和内部构建号，不改写原 tag。

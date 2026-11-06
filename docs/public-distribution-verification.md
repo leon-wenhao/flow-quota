@@ -106,3 +106,18 @@
 - x86_64 DMG：2,588,160 bytes，SHA-256 `cc3fe0bf9d3aae6f3d8834ffd2f9e2952c8f00f09ecacd49bb6ebdd276656653`。
 - 匿名访问 `releases/latest/download/update-manifest.json` 返回与发布包逐字节一致的 0.1.5 更新清单。仅获取小型 JSON，未重新下载公开 DMG 做验收；安装包上传属于本次授权发布。
 - 本地发布包：`.artifacts/releases/FlowQuota-0.1.5-build-26/`；日志与核对结果：`.artifacts/release-0.1.5.log`、`.artifacts/release-0.1.5-verification.json`，均不进入 Git 历史。没有替换本机应用、启停采样或操作生产数据库。当前仍为 ad-hoc、未公证，Intel／macOS 14 真机与新装运行验收尚未完成；未进行热点流量实验。
+
+
+## 0.1.7 完整流量总量与预警应用明细发布（2026-11-06）
+
+- 对外版本为 `Flow Quota 0.1.7`，内部构建号 28；源码提交 `fed0ccdf8a1fbf5861b55923bdf6dd0e55fc58cf` 已推送 `main`，正式 tag `v0.1.7` 精确指向此提交。
+- 本次修复分时主图隐藏代理内核、仅显示部分识别来源而使总量看起来减少的问题。主图使用独立接口分钟记录，进程及代理内核保留全部返回用量，原始应用未确认时标明；上传／下载分别展示未识别或计量差额，Clash 辅助线索单列，不与内核再次相加。同时发布此前完成的 schema v8 预警应用证据，展开记录可查看触发时的应用上传／下载／合计；缺失及容量不足直接说明。
+- 发布前 Swift 全量回归 419 项、最终界面／计量定向回归 11 项通过；发布工具 Python 单测 34 项、共享向量同步及凭据／产物检查通过。两个架构的 Release 编译、App／Agent 严格 ad-hoc 签名、发布静态审计、DMG 与 appcast Ed25519 独立公钥验证通过。
+- 正式发布于 `2026-11-06T10:31:31Z`（北京时间 18:31:31），Release ID `436368471`，为非草稿、非预发布的 latest。八个附件的名称、uploaded 状态、大小及 GitHub SHA-256 digest 全部与本地一致；附件完整核验后才激活 latest。
+- 发布页：<https://github.com/leon-wenhao/flow-quota/releases/tag/v0.1.7>。
+- arm64 DMG：3,499,008 bytes，SHA-256 `699cd9b494e52b787e7bb10ad136cb2ad4ec51a4c3cd8429ef7465e851651ce8`。
+- x86_64 DMG：3,631,104 bytes，SHA-256 `058f6fcfb132aeff7079bfb2f80adc4c1fa79f73673bc347c574e5761712f990`。
+- 两份成品 DMG 均只读挂载，复核版本／构建号／架构／最低系统版本、App 与服务严格签名、主程序和 Agent 与构建产物逐字节一致、Applications 链接、安装说明、背景及 Finder 元数据后推出。没有启动包内程序或替换本机安装。
+- 当前网络通过已有系统代理匿名访问 `releases/latest/download/update-manifest.json` 与两个架构 appcast，三份内容均与本地逐字节一致；同时通过 Release Assets API 核验。仅读取小型更新元数据，没有重新下载线上 DMG 做流量实验。
+- 本地 bundle：`.artifacts/releases/FlowQuota-0.1.7-build-28/`；打包发布日志 `.artifacts/release-0.1.7-publish.log`，线上与成品核验为 `.artifacts/release-0.1.7-online-verification.json`、`.artifacts/release-0.1.7-dmg-verification.json`，均不进入 Git 历史。
+- 当前仍为 ad-hoc、未 Developer ID 签名及未公证；未验收 macOS 14／Intel 真机和真实跨版本 Sparkle 替换。没有操作本机服务或生产数据库，没有生成热点实验下载／上传。完整总量指有效观测区间，现有输入不能证明每个接口字节唯一对应某个原始应用，未知与重复仍必须说明。
