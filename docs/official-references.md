@@ -185,3 +185,9 @@ measurement validation.
 验证结果及尚未完成的分发限制见 `docs/public-distribution-verification.md`。
 
 - [Git Trees API](https://docs.github.com/en/rest/git/trees)、[Git Commits API](https://docs.github.com/en/rest/git/commits)、[Git Refs API](https://docs.github.com/en/rest/git/refs)、[Contents API](https://docs.github.com/en/rest/repos/contents)：空仓库先仅用公开 README 初始化，再建立白名单 blob/tree/commit；更新 ref 使用 `force: false`，避免覆盖并发提交。公开 tag 只取公开 main，绝不使用私有源 HEAD。
+
+## DMG Finder 安装布局（2026-11-06）
+
+- 本机 `/System/Library/CoreServices/Finder.app` 公开 scripting dictionary（使用 Xcode 27.2 的 `sdef` 导出）：`container window`、`icon view options`、`arrangement`、`background picture`、`position`、`bounds`、`toolbar visible`、`statusbar visible`，以及 `update … without registering applications`。只使用公开脚本接口，不修改系统窗口或私有 API。
+- 本机 macOS 27.2 的 `diskutil(8)`、`diskutil image create from --help`：从文件夹创建命名卷；RAW 可写、UDZO 只读压缩，已有镜像可作为转换源；`image attach --mountPoint` 指定临时挂载目录。macOS 14–26 使用原有 `hdiutil create/attach/convert` 路径，尚需对应系统验证。
+- Xcode 27.2 / AppKit SDK 的 `NSBitmapImageRep`、`NSImage`、`NSGraphicsContext`：背景通过系统文字与路径绘制，TIFF 同时包含 1×／2× bitmap 并指定逻辑尺寸。安装提示继续遵循上文 Apple 安全打开 App 的正常单应用入口。

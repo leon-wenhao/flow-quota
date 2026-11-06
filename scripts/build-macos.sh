@@ -94,12 +94,6 @@ fi
 echo "Built: $APP (version $VERSION, build $BUILD_NUMBER)"
 
 if $DMG; then
-    STAGE="$(mktemp -d "$ROOT/.artifacts/dmg-stage.XXXXXX")"
-    # Only this invocation's temporary staging directory is removed.
-    trap 'rm -rf "$STAGE"' EXIT
-    ditto "$APP" "$STAGE/Flow Quota.app"
-    ln -s /Applications "$STAGE/Applications"
-    cp "$ROOT/macos/Configuration/INSTALL.txt" "$STAGE/安装说明.txt"
     if [[ -n "$DMG_OUTPUT" ]]; then
         OUTPUT="$DMG_OUTPUT"
         [[ "$OUTPUT" = /* ]] || OUTPUT="$ROOT/$OUTPUT"
@@ -109,16 +103,5 @@ if $DMG; then
             OUTPUT="$ROOT/.artifacts/FlowQuota-$VERSION-dev-$ARCH-$(date +%Y%m%d-%H%M%S).dmg"
         fi
     fi
-    mkdir -p "$(dirname "$OUTPUT")"
-    SYSTEM_VERSION="$(sw_vers -productVersion)"
-    if [[ "${SYSTEM_VERSION%%.*}" -ge 27 ]]; then
-        # macOS 27's official CLI replaces deprecated hdiutil create.
-        diskutil image create from --volumeName "Flow Quota $VERSION Development" \
-            --format UDZO "$STAGE" "$OUTPUT"
-    else
-        hdiutil create -volname "Flow Quota $VERSION Development" -srcfolder "$STAGE" \
-            -ov -format UDZO "$OUTPUT"
-    fi
-    shasum -a 256 "$OUTPUT"
-    echo "Development DMG only: no notarization or active traffic protection."
+    "$ROOT/scripts/package-macos-dmg.sh" "$APP" "$OUTPUT"
 fi

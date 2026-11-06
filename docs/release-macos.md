@@ -81,3 +81,25 @@ gh repo create leon-wenhao/flow-quota-releases --public \
 安装说明明确 ad-hoc、未公证；使用 Apple 正常的单应用打开入口，不提供关闭系统安全机制的命令。发布仓库隔离保护源码和历史，不能保证二进制无法被逆向。
 
 官方 API、CLI 与 Apple 依据见 `docs/official-references.md`；实际结果见 `docs/public-distribution-verification.md`。
+
+## DMG 安装窗口布局（2026-11-06）
+
+`build-macos.sh` 的开发／发布 DMG 共用 `package-macos-dmg.sh`。窗口内容为 720 × 500 点：Flow Quota 在左、Applications 在右，中间为拖拽箭头，底部显示安装步骤、ad-hoc／未公证状态和可打开的 `安装说明.txt`。卷名仅显示产品名与三段版本号。
+
+`GenerateDMGBackground.swift` 使用系统 AppKit 生成 1×／2× TIFF；图标仍为 Finder 的真实文件。脚本先以最终卷名创建可写镜像，挂载到 `/Volumes/`（避免元数据带入本地源码路径），再通过 Finder 的公开 AppleScript 字典设置图标视图、固定位置、窗口边界及卷内隐藏背景，确认 `.DS_Store` 已写出后，卸载，转换为只读 UDZO。macOS 27 使用本机 `diskutil image`；旧系统保留 `hdiutil` 分支。不引入第三方 DMG／Python 依赖。临时工作目录在退出时清理；卸载失败则保留并报错，避免删除挂载内容。
+
+构建前需推出已挂载的同版本 DMG；检测到同名卷时脚本明确报错，不替使用者推出卷。背景别名在最终卷名确定后生成，避免改名后失效。构建布局需要登录的图形会话及终端对 Finder 的自动化授权；授权失败会停止打包并返回实际错误，不输出布局成功提示。使用者打开成品 DMG 不需要该授权。只重新打包已构建的本地应用：
+
+```bash
+./scripts/package-macos-dmg.sh "$PWD/.artifacts/arm64/Flow Quota.app" \
+  "$PWD/.artifacts/FlowQuota-layout-arm64.dmg"
+```
+
+输出路径必须是新的绝对路径；不覆盖已发布附件。布局验证需重新挂载最终只读包，检查背景、左右位置、说明文件及 Applications 链接。当前主机验证不代替最低 macOS 14 或 Intel 真机验收。
+
+2026-11-06 本机验证（macOS 27.2、Swift 6.4.2 / Xcode 27.2）：
+
+- 复用 0.1.1 build 22 的两个已构建应用，生成 `.artifacts/FlowQuota-0.1.1-installer-arm64.dmg` 与 `FlowQuota-0.1.1-installer-x86_64.dmg`，未上传或替换公开附件。
+- 最终 UDZO 均以只读方式重新挂载：应用签名／版本／架构审计通过，Applications 指向 `/Applications`，说明文件与源文件一致；保存的三个图标坐标分别为 `(180, 180)`、`(540, 180)`、`(610, 370)`。背景别名在原临时卷卸载及目录删除后，仍解析到重新挂载成品内的 TIFF；逻辑尺寸 720 × 500，含 720 × 500 与 1440 × 1000 两个 bitmap。Finder 元数据不含 `/Users/` 或 HFS 用户目录路径。
+- 已验证同版本卷已挂载时的提前失败提示；正常打包后临时工作目录均清理。Shell 语法及 `git diff --check` 通过，现有 Python 发布／打包测试共 52 项通过。
+- Finder 脚本已在打包时重新打开并核对保存的图标视图与左右位置。独立原生截图工具返回 `cgWindowNotFound`，本轮尚未取得最终窗口截图，不能视为完成截图目视验收。macOS 14–26 分支及 Intel 真机运行未验证；未进行任何热点流量实验。

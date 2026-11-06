@@ -2,10 +2,10 @@
   "schemaVersion": 2,
   "product": "flow-quota",
   "channel": "stable",
-  "version": "0.1.1",
-  "build": 22,
+  "version": "0.1.2",
+  "build": 23,
   "minimumSystemVersion": "14.0",
-  "releaseNotesURL": "https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.1-build.22",
-  "downloadURL": "https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.1-build.22",
+  "releaseNotesURL": "https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.2-build.23",
+  "downloadURL": "https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.2-build.23",
   "publishedAt": null
 }
