@@ -17,7 +17,7 @@ struct PreferencesWindowView: View {
                 ServiceFeedback(state: state).padding(.horizontal, 20).padding(.vertical, 8)
             }
         }
-        .frame(minWidth: 740, minHeight: 520)
+        .frame(minWidth: 820, minHeight: 620)
         .background(Color(nsColor: .windowBackgroundColor))
         .appAppearance()
         .disclosureGroupStyle(FullRowDisclosureStyle())
@@ -89,7 +89,7 @@ struct PreferencesWindowView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         pageContent
                     }
-                    .frame(maxWidth: 720, alignment: .leading)
+                    .frame(maxWidth: navigation.page == .charts ? 1040 : 720, alignment: .leading)
                     .padding(20).frame(maxWidth: .infinity, alignment: .top)
                 }
                 .environment(\.chartTooltipViewport, viewport.frame(in: .global))

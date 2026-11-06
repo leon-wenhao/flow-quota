@@ -118,7 +118,6 @@ struct MacTrafficTimelineTests {
         }
         Text("下载 790.3 MB · 上传 41.7 MB").font(.subheadline)
         UsageTimelineChart(data: meter, processes: processes, isInterface: true)
-        TrafficSourceDetailsView(processes: processes)
         UsageChartsView(data: processes)
     }
     .padding(20).frame(width: 700, height: 900)

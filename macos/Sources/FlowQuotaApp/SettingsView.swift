@@ -24,6 +24,7 @@ struct SettingsView: View {
                 usageRefreshSetting
                 loginItem
             }
+            networkClassification
             UpdateSettingsView(state: state)
             serviceTools
         }
@@ -70,6 +71,34 @@ struct SettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var networkClassification: some View {
+        DisclosureGroup("网络分类修正") {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(state.networkName, systemImage: "network")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .help(state.networkDetail)
+                if state.showsHotspotControl {
+                    HStack(spacing: 12) {
+                        Text("手动热点").frame(maxWidth: .infinity, alignment: .leading)
+                        Toggle("手动热点", isOn: Binding(
+                            get: { state.hotspotMarked },
+                            set: { state.setHotspotOverride($0) }
+                        ))
+                        .labelsHidden().toggleStyle(FlowQuotaToggleStyle()).fixedSize()
+                        .disabled(!state.canConfigureNetwork)
+                        .help(state.networkDetail)
+                    }
+                    .padding(.vertical, 3)
+                    if !state.networkUnavailableReason.isEmpty {
+                        Text(state.networkUnavailableReason).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.top, 8)
+        }
+        .font(.subheadline)
     }
 
     private var serviceTools: some View {

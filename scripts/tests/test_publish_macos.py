@@ -64,6 +64,7 @@ class PublisherTests(unittest.TestCase):
         commands = self.commands()
         self.assertEqual([c[2] for c in commands], ["create", "upload", "edit"])
         self.assertIn("--verify-tag", commands[0])
+        self.assertEqual(commands[0][commands[0].index("--title") + 1], MANIFEST["version"])
         self.assertIn("--latest=false", commands[0])
         self.assertEqual(commands[1], ("gh", "release", "upload", TAG, "--repo", REPO, *map(str, self.assets)))
         self.assertIn("--latest=false", commands[-1])

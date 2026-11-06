@@ -91,7 +91,7 @@ def publish(bundle, repo, activate):
     release = release_for_tag(repo, tag)
     if release is None:
         run("gh", "release", "create", tag, "--repo", repo, "--verify-tag", "--draft", "--latest=false",
-            "--title", "Flow Quota {}".format(manifest["version"]),
+            "--title", manifest["version"],
             "--notes-file", str(bundle / "RELEASE-NOTES.md"))
         release = release_for_tag(repo, tag)
     if release is None:

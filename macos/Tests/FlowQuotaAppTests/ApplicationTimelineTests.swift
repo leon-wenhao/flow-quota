@@ -73,10 +73,32 @@ func applicationTimelineFixture(observed: Bool = true) -> ApplicationUsageTimeli
 @MainActor @Test func pairedPiesFitSideBySideWithoutTextLists() throws {
     _ = NSApplication.shared
     let data = try #require(ApplicationTimelinePresentation.make(applicationTimelineFixture()))
-    let host = NSHostingView(rootView: UsageChartsView(data: data).frame(width: 520))
+    let host = NSHostingView(rootView: HStack(alignment: .top, spacing: 20) {
+        UsagePieChart(data: data.pie(.upload), title: "上传", sourceIDs: data.sources.map(\.id))
+        UsagePieChart(data: data.pie(.download), title: "下载", sourceIDs: data.sources.map(\.id))
+    }.frame(width: 520))
     host.layoutSubtreeIfNeeded()
     #expect(host.fittingSize.width == 520)
     #expect(host.fittingSize.height < 300)
+}
+
+@MainActor @Test func sourceRankingAndPairedPiesKeepAllSourcesWithinBoundedHeight() throws {
+    _ = NSApplication.shared
+    let base = applicationTimelineFixture()
+    let rows = (0..<24).map { index in
+        ApplicationUsageBucket(appKey: "app-\(index)", name: "来源 \(index)",
+            startMilliseconds: 1_800_000_000_000, uploadedBytes: Int64(index + 1),
+            downloadedBytes: Int64(index + 2), sampleCount: 1)
+    }
+    let data = try #require(ApplicationTimelinePresentation.make(ApplicationUsageTimeline(
+        query: base.query, bucketMinutes: 5, buckets: rows)))
+    #expect(data.sources.count == 24)
+    #expect(data.pie(.upload).slices.count == 24)
+    #expect(data.pie(.download).slices.count == 24)
+    let host = NSHostingView(rootView: UsageChartsView(data: data).frame(width: 520))
+    host.layoutSubtreeIfNeeded()
+    #expect(host.fittingSize.width == 520)
+    #expect(host.fittingSize.height < 620)
 }
 
 @MainActor @Test func nativeApplicationChartFixtureCanBeRenderedWithoutSampling() async throws {

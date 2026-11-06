@@ -11,7 +11,9 @@ OUTPUT="$2"
 }
 VERSION="$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist")"
 mkdir -p "$ROOT/.artifacts" "$(dirname "$OUTPUT")"
-WORK="$(mktemp -d "$ROOT/.artifacts/dmg-layout.XXXXXX")"
+# Keep the Applications symlink outside the source workspace so editor indexers
+# cannot traverse installed apps, even while packaging or after interruption.
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/flow-quota-dmg.XXXXXX")"
 # Keep the final volume name from the start: Finder background aliases do not
 # reliably survive renaming. /Volumes also keeps source paths out of metadata.
 VOLUME="Flow Quota $VERSION"
@@ -33,6 +35,8 @@ cleanup() {
     rm -rf "$WORK"
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir -p "$WORK/stage/.background"
 ditto "$APP" "$WORK/stage/Flow Quota.app"
 ln -s /Applications "$WORK/stage/Applications"

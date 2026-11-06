@@ -6,12 +6,12 @@
 
 先完成并审查源码，再设置版本。对外标题只显示三段版本号，tag 例如 `v0.1.4`，不带 build 后缀；每次发布版本号和内部构建号都必须递增。
 
-0.1.8 发布后，下一次发布可使用：
+0.1.9 发布后，下一次发布可使用：
 
 ```bash
-./scripts/set-version.sh 0.1.9 30
+./scripts/set-version.sh 0.1.10 31
 git add <本次需要发布的文件>
-git commit -m "release: prepare 0.1.9"
+git commit -m "release: prepare 0.1.10"
 git push origin main
 ./scripts/release-macos.sh --publish --activate-manifest
 ```
@@ -40,7 +40,7 @@ git push origin main
 保留原 bundle，重试以下命令，不重新构建或覆盖正式附件：
 
 ```bash
-python3 scripts/publish_macos.py   --bundle .artifacts/releases/FlowQuota-0.1.8-build-29   --activate-manifest
+python3 scripts/publish_macos.py   --bundle .artifacts/releases/FlowQuota-0.1.9-build-30   --activate-manifest
 ```
 
 草稿只补传缺失项，已上传项必须摘要相同；正式版仅核验，不使用 `--clobber`。若正式版已发布但 latest 激活失败，重复命令只会核对并恢复激活。源码或附件有变动时递增版本号和内部构建号，不改写原 tag。
@@ -82,3 +82,21 @@ DMG 固定图标视图：Flow Quota 在左、Applications 在右、中间箭头�
 请勿上传私钥、打印私钥内容或将其放入 Release 输出目录。未加入 Apple Developer ID 签名的应用丢失 Ed25519 私钥后，无法为已安装客户端安全签发后续自动替换更新，须由用户重新手动安装。框架签名与公开密钥验证不替代 Gatekeeper 或 Apple 公证。
 
 新客户端首次发布时，已安装的 0.1.5 仍需通过原 DMG 流程升级一次，之后使用应用内更新。真实跨版本替换与系统提示仍须在实际安装环境验收；编译、签名检查及模拟服务测试不能代替该项。
+
+## 构建暂存与编辑器索引
+
+DMG 的 `Applications` 符号链接只用于安装入口。打包工作目录使用系统临时目录
+`${TMPDIR:-/tmp}/flow-quota-dmg.*`，不放入源码工作区；正常退出、错误退出及
+INT/TERM 中断均触发清理。若临时镜像无法卸载，脚本报错并保留路径，先卸载再清理；
+SIGKILL 或断电无法执行退出清理，恢复后检查该临时路径。
+
+`.vscode/settings.json` 在本工作区关闭 C/C++ IntelliSense，将备用浏览范围收窄至
+`macos/Sources`，并从文件视图、监视、搜索及 C/C++ 索引中排除构建目录。
+搜索不跟随符号链接。不要仅依赖 `.gitignore` 控制编辑器索引。
+2026-11-06 核对本机 C/C++ 扩展 1.35.6 的官方 `package.json` 设置定义；参考
+[官方 C/C++ 配置说明](https://code.visualstudio.com/docs/cpp/customize-cpp-settings)与
+[官方搜索说明](https://code.visualstudio.com/docs/editing/codebasics)。
+
+旧版 `.artifacts/dmg-stage.*` 可能残留指向 `/Applications` 的链接；确认没有打包任务或
+挂载镜像使用后可删除这些暂存目录。异常索引须先应用排除设置、停止持有它的索引进程，
+再删除对应工作区的缓存；不要删除其他工作区缓存或手动处理系统交换文件。

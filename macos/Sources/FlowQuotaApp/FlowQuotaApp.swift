@@ -1,7 +1,6 @@
 import AppKit
 import FlowQuotaCore
 import SwiftUI
-import ServiceManagement
 import UserNotifications
 
 @main
@@ -45,6 +44,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notificationDelegate = ReminderPresentationDelegate()
     lazy var preferences = PreferencesWindowController(state: state)
     private var waitingForStop = false
+    private lazy var quitProgress = QuitProgressWindow(state: state)
+    private lazy var quit = AppQuitCoordinator(state: state,
+        suspendPolling: { [weak self] in self?.monitor.stop() },
+        resumePolling: { [weak self] in self?.monitor.start() },
+        showProgress: { [weak self] in self?.quitProgress.show() },
+        hideProgress: { [weak self] in self?.quitProgress.close() },
+        confirmUIExit: Self.confirmUIExit,
+        terminate: { NSApplication.shared.terminate(nil) })
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if DevelopmentServiceCheck.startIfRequested() { return }
@@ -64,7 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if state.updater.readyToTerminate { return .terminateNow }
+        if state.updater.readyToTerminate || quit.readyToTerminate { return .terminateNow }
+        if quit.stopping { return requestQuit(sender) }
         if state.updater.installing || state.updater.recovering || state.updater.needsRecovery {
             let alert = NSAlert()
             alert.messageText = "更新交接尚未完成"
@@ -85,35 +93,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return .terminateLater
         }
 
-        // A first launch with no registered service has no collector to stop. Do not
-        // trap the user in an app that has never been enabled.
-        if !state.everConnected, !state.busy,
-           SMAppService.agent(plistName: FlowQuotaCore.AgentEndpoint.launchAgentPlist).status == .notRegistered {
-            return .terminateNow
+        return requestQuit(sender)
+    }
+
+    private func requestQuit(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if AppQuitCoordinator.needsSystemReply(for: NSAppleEventManager.shared().currentAppleEvent) {
+            return quit.request(systemReply: { sender.reply(toApplicationShouldTerminate: $0) })
         }
-        guard !waitingForStop else { return .terminateLater }
-        waitingForStop = true
-        // Reply asynchronously after applicationShouldTerminate has returned terminateLater.
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.state.stopForTermination { [weak self] allowed in
-                if allowed {
-                    self?.waitingForStop = false
-                    sender.reply(toApplicationShouldTerminate: true)
-                } else {
-                    let alert = NSAlert()
-                    alert.messageText = "尚未退出 Flow Quota"
-                    alert.informativeText = self?.state.errorMessage ?? "本地服务尚未确认停止采集。请重试。"
-                    alert.addButton(withTitle: "返回应用")
-                    alert.addButton(withTitle: "仅退出界面")
-                    alert.informativeText += "\n也可以仅退出界面；后台采集是否仍在运行无法确认，且界面退出后不会发送提醒。"
-                    let exitUI = alert.runModal() == .alertSecondButtonReturn
-                    self?.waitingForStop = false
-                    sender.reply(toApplicationShouldTerminate: exitUI)
-                }
-            }
-        }
-        return .terminateLater
+        return quit.request()
+    }
+
+    private static func confirmUIExit(_ message: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "无法确认采集已停止"
+        alert.informativeText = message
+        alert.informativeText += "\n仅退出界面后，后台采集可能继续运行，且不会发送提醒。"
+        alert.addButton(withTitle: "返回应用")
+        alert.addButton(withTitle: "仅退出界面")
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     func applicationWillTerminate(_ notification: Notification) { monitor.stop() }

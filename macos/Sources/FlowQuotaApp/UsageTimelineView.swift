@@ -28,8 +28,9 @@ struct UsageTimelineView: View {
         let query = query(now: now, dayStart: dayStart)
         let data = result.flatMap { $0.query == query ? ApplicationTimelinePresentation.make($0) : nil }
         let meter = query.flatMap { MacTrafficTimeline.make(query: $0, minutes: state.categorySnapshot?.interfaceUsageMinutes) }
-        VStack(alignment: .leading, spacing: 16) {
-            SettingsSection(title: "Mac 分时总流量") {
+        VStack(alignment: .leading, spacing: 12) {
+            // Keep the timeline and source charts readable in the normal preference-window viewport without changing their data.
+            SettingsSection(title: "Mac 分时总流量", cardPadding: 12) {
                 FlowQuotaSegmentedControl(
                     options: TimeRange.allCases,
                     selection: $range,
@@ -53,9 +54,8 @@ struct UsageTimelineView: View {
                 if let loadError { Text("应用明细读取失败：\(loadError)；接口总量仍独立展示。").font(.caption).foregroundStyle(.orange) }
             }
             .zIndex(1)
-            if snapshotUsable {
-                TrafficSourceDetailsView(processes: data)
-                if let data, data.summary.totalBytes != nil { UsageChartsView(data: data) }
+            if snapshotUsable, let data, data.summary.totalBytes != nil {
+                UsageChartsView(data: data, chartHeight: 150)
             }
         }
         .task(id: Refresh(query: query, snapshotDate: state.snapshot?.generatedAt, usable: snapshotUsable)) {
@@ -110,11 +110,11 @@ struct UsageTimelineView: View {
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 Image(systemName: "info.circle")
-                    .help("总量来自所选物理接口，包含全部有效观测字节，不因应用来源未知而减少。每组左侧上传、右侧下载；悬停查看总量及流量来源，完整明细在下方。Clash 来源与其他未识别保留内核全部用量，父项不重复列出；物理接口与应用观测仍可能存在时间与协议差异。空白未观测，圆点为观测零；采样间断不补量。")
+                    .help("总量来自所选物理接口，包含全部有效观测字节，不因应用来源未知而减少。每组左侧上传、右侧下载；悬停查看总量及流量来源。Clash 来源与其他未识别保留内核全部用量，父项不重复列出；物理接口与应用观测仍可能存在时间与协议差异。空白未观测，圆点为观测零；采样间断不补量。")
                     .accessibilityLabel("Mac 总流量统计说明")
             }
             if data.summary.totalBytes != nil {
-                UsageTimelineChart(data: data, processes: processes, isInterface: true)
+                UsageTimelineChart(data: data, processes: processes, isInterface: true, chartHeight: 180)
             } else {
                 message("此时段无接口观测，总量未知；应用明细仍单独保留。")
             }

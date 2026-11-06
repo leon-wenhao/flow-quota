@@ -10,6 +10,9 @@ import Testing
     var fetchFails = false
     var saveFails = false
     var stopFails = false
+    var holdStop = false
+    var stopGate: CheckedContinuation<Void, Never>?
+    var recoveringStop = false
     var savedRules = 0
     var acknowledgementFails = false
     var acknowledgements: [QuotaNotificationKey] = []
@@ -84,8 +87,13 @@ import Testing
         if acknowledgementFails { throw PlatformError.unavailable("test ACK failure") }
         alertAcknowledgements.append(id)
     }
+    func stopForTermination(onRecovery: @escaping @MainActor () -> Void) async throws {
+        if recoveringStop { onRecovery() }
+        try await stopProtection()
+    }
     func stopProtection() async throws {
         stoppedCount += 1
+        if holdStop { await withCheckedContinuation { stopGate = $0 } }
         if stopFails { throw PlatformError.unavailable("test stop rejected") }
     }
 }

@@ -14,7 +14,7 @@ struct UsageTimelineTooltip: View {
 
     static let width: CGFloat = 272
     var height: CGFloat {
-        selection.totalBytes == nil ? 72 : 110 + CGFloat(shownEvidence.count) * 18
+        selection.totalBytes == nil ? 72 : 92 + CGFloat(shownEvidence.count) * 18
     }
 
     var body: some View {
@@ -38,10 +38,6 @@ struct UsageTimelineTooltip: View {
                         row(app)
                     }
                 }
-                if evidence.count > shownEvidence.count {
-                    Text("共 \(evidence.count) 项，全部来源见下方明细").font(.caption2)
-                }
-
             } else {
                 Text("未观测，用量未知").font(.caption).foregroundStyle(.secondary)
             }

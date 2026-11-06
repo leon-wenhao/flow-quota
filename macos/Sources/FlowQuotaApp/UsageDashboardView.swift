@@ -4,7 +4,7 @@ struct UsageDashboardView: View {
     let state: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("用量图表").flowQuotaPageTitle()
             UsageTimelineView(state: state)
         }

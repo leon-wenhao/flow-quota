@@ -23,13 +23,14 @@ final class PreferencesWindowController: NSWindowController {
     func show(_ page: PreferencesNavigation.Page = .applications) {
         navigation.select(page)
         if window == nil {
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 680),
+            // The charts page contains a timeline and two directional pies; give the first layout enough viewport to show both.
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1040, height: 800),
                                   styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                   backing: .buffered, defer: false)
             window.title = "Flow Quota 偏好设置"
             window.contentViewController = NSHostingController(
                 rootView: PreferencesWindowView(state: state, navigation: navigation))
-            window.contentMinSize = NSSize(width: 740, height: 520)
+            window.contentMinSize = NSSize(width: 820, height: 620)
             window.isReleasedWhenClosed = false
             window.setFrameAutosaveName("FlowQuotaPreferences")
             if !window.setFrameUsingName("FlowQuotaPreferences") { window.center() }

@@ -17,11 +17,17 @@ import FlowQuotaCore
     func saveTrafficAlertPolicy(_ policy: TrafficAlertPolicy, category: TrafficCategory) async throws
     func fetchTrafficAlertHistory(day: String, offset: Int, category: TrafficCategory) async throws -> [TrafficAlertEvent]
     func stopProtection() async throws
+    /// Quit-only recovery; progress is reported before awaiting system service removal.
+    func stopForTermination(onRecovery: @escaping @MainActor () -> Void) async throws
 }
 
 // Existing metered-only clients remain usable, but never silently write an
 // ordinary-network setting into the metered ledger.
 extension AgentServiceClient {
+    public func stopForTermination(onRecovery: @escaping @MainActor () -> Void) async throws {
+        try await stopProtection()
+    }
+
     public func fetchTrafficAlertDetails(id: String, day: String, category: TrafficCategory) async throws -> TrafficAlertEvent {
         throw PlatformError.unavailable("当前服务不支持预警应用明细，请更新服务。")
     }

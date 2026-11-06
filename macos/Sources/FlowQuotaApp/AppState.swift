@@ -12,7 +12,6 @@ final class AppState {
     var selectedTrafficCategory: TrafficCategory = .metered
     private(set) var snapshot: AgentSnapshot?
     private(set) var connected = false
-    private(set) var everConnected = false
     private(set) var refreshing = false
     private(set) var snapshotExpired = true
     private(set) var operation: String?
@@ -112,7 +111,6 @@ final class AppState {
             scheduleExpiry(for: next.generatedAt)
             connected = true
             connectionError = nil
-            everConnected = true
             if snapshotIsCurrent && !quitRequested { await deliverTrafficAlerts(next) }
             if snapshotIsCurrent && next.monitoring == .collecting && !quitRequested {
                 await reminderDelivery.deliver(next.notifications) { [weak self] notification in
@@ -196,7 +194,9 @@ final class AppState {
         quitRequested = true
         perform("正在停止采集") { state in
             do {
-                try await state.client.stopProtection()
+                try await state.client.stopForTermination {
+                    state.operation = "服务未响应，正在停止后台服务"
+                }
                 reply(true)
             } catch {
                 state.quitRequested = false

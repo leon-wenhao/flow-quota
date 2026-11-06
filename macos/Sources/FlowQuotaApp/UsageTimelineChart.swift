@@ -5,6 +5,7 @@ struct UsageTimelineChart: View {
     let data: ApplicationTimelinePresentation
     var processes: ApplicationTimelinePresentation?
     var isInterface = false
+    var chartHeight: CGFloat = 190
     @Environment(\.chartTooltipViewport) private var tooltipViewport
     @State private var hoverLocation: CGPoint?
 
@@ -51,7 +52,7 @@ struct UsageTimelineChart: View {
                 }
             }
         }
-        .frame(height: 190)
+        .frame(height: chartHeight)
         .accessibilityLabel(isInterface ? "Mac 分时总流量，左柱上传、右柱下载；含全部接口观测，空白未知，圆点为零" : "进程分时观测，可能重叠；空白未观测，圆点为零")
         .onChange(of: data.summary.interval) { _, _ in hoverLocation = nil }
         .onChange(of: data.sources.map(\.id)) { _, _ in hoverLocation = nil }

@@ -39,19 +39,11 @@ struct OverviewView: View {
                     SamplingControl(state: state)
                 }
                 .frame(height: 24)
-                HStack {
-                    Label(state.networkName, systemImage: "network")
-                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    Spacer()
-                    if state.showsHotspotControl {
-                        Toggle(isOn: Binding(get: { state.hotspotMarked }, set: { state.setHotspotOverride($0) })) {
-                            Text("手动热点")
-                        }
-                        .toggleStyle(FlowQuotaToggleStyle()).font(.caption).fixedSize()
-                        .disabled(!state.canConfigureNetwork).help(state.networkDetail)
-                    }
-                }
-                .frame(height: 22)
+                Label(state.networkName, systemImage: "network")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 22)
+                    .help(state.networkDetail)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("今日接口用量 · \(state.selectedTrafficCategory.title)")
                         .font(.caption).foregroundStyle(.secondary)

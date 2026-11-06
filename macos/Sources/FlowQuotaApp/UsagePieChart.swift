@@ -37,6 +37,7 @@ struct UsagePieChart: View {
     let data: UsagePieData
     let title: String
     var sourceIDs: [String] = []
+    var chartHeight: CGFloat = 174
     @Environment(\.chartTooltipViewport) private var tooltipViewport
     @State private var hoverPoint: CGPoint?
 
@@ -45,7 +46,7 @@ struct UsagePieChart: View {
             Text(title).font(.subheadline.weight(.semibold))
             if data.totalBytes == 0 {
                 Text("已观测用量为 0 B").font(.caption).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 174)
+                    .frame(maxWidth: .infinity, minHeight: chartHeight)
             } else {
                 Chart(data.slices) { item in
                     // Gaps can erase tiny slices; keep exact proportions and contiguous colors.
@@ -55,7 +56,7 @@ struct UsagePieChart: View {
                         .accessibilityValue(description(item))
                 }
                 .chartLegend(.hidden)
-                .frame(height: 174)
+                .frame(height: chartHeight)
                 .chartBackground { _ in
                     Text(UsageFormatter.bytes(data.totalBytes)).font(.caption.bold()).monospacedDigit()
                         .allowsHitTesting(false)

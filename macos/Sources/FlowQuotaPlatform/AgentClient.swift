@@ -21,11 +21,11 @@ import ServiceManagement
             unregister: { try await service.unregister() },
             verifyConnection: { _ = try await self.fetchSnapshot() },
             startMonitoring: { try await self.requireAcknowledgement(.startMonitoring) },
-            allowsReplacement: canRepairDevelopmentAgent)
+            allowsReplacement: canReplaceReminderAgent)
         try await recovery.connect(startMonitoring: startMonitoring, replacingRegistration: replacingRegistration)
     }
 
-    private var canRepairDevelopmentAgent: Bool {
+    var canReplaceReminderAgent: Bool {
         let extensionFolder = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/SystemExtensions")
         return Bundle.main.object(forInfoDictionaryKey: "FlowQuotaDevelopmentBuild") as? Bool == true
             && !FileManager.default.fileExists(atPath: extensionFolder.path)
@@ -40,7 +40,7 @@ import ServiceManagement
     /// Development diagnostics may repair registration without starting either sampler.
     /// The helper must also be launched with FLOW_QUOTA_VERIFY_PAUSED=1 for a cold start.
     public func repairDevelopmentAgent(startMonitoring: Bool) async throws {
-        guard canRepairDevelopmentAgent else {
+        guard canReplaceReminderAgent else {
             throw PlatformError.unavailable("该构建不能使用开发服务修复；请先通过正式流程停止保护。")
         }
         guard startMonitoring || ProcessInfo.processInfo.environment["FLOW_QUOTA_VERIFY_PAUSED"] == "1" else {
@@ -122,16 +122,24 @@ import ServiceManagement
     }
 
     private func helperRequirement() throws -> String {
+        try PeerRequirement.string(forExecutable: helperExecutable())
+    }
+
+    private func helperExecutable() throws -> URL {
         let appURL = Bundle.main.bundleURL
         guard appURL.pathExtension == "app" else {
             throw PlatformError.unavailable("请运行构建脚本生成的 Flow Quota.app；命令行二进制不包含后台服务。")
         }
-        let helper = appURL.appendingPathComponent("Contents/MacOS/FlowQuotaAgent")
-        return try PeerRequirement.string(forExecutable: helper)
+        return appURL.appendingPathComponent("Contents/MacOS/FlowQuotaAgent")
     }
 
     private func send(_ request: AgentRequest) async throws -> AgentReply {
-        let requirement = try helperRequirement()
+        let helper = try helperExecutable()
+        // Security validation reads the executable from disk. Keep it off the UI
+        // actor so a slow disk cannot freeze the quit progress window or polling UI.
+        let requirement = try await Task.detached(priority: .userInitiated) {
+            try PeerRequirement.string(forExecutable: helper)
+        }.value
         let payload = try JSONEncoder().encode(request)
         let connection = NSXPCConnection(machServiceName: AgentEndpoint.machService)
         connection.remoteObjectInterface = NSXPCInterface(with: AgentXPCProtocol.self)
