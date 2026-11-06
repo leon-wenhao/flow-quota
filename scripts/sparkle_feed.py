@@ -1,6 +1,7 @@
 """Signed, architecture-specific Sparkle feeds. Private keys never enter Python."""
 import base64
 import hashlib
+import html
 import json
 import os
 from pathlib import Path
@@ -40,41 +41,32 @@ def sign_archive(path, tool):
 
 
 INSTALL_DESCRIPTION = (
-    "下载后自动替换并重启，保留规则、偏好和当天累计。更新期间不补算流量。"
-    "当前为 ad-hoc 签名，未完成 Apple 公证；系统可能要求额外确认。"
+    "<h3>安装与安全</h3>"
+    "<p>下载后自动替换并重启，保留规则、偏好和当天累计；更新期间不补算流量。</p>"
+    "<p>当前为 <b>ad-hoc</b> 签名，未完成 Apple 公证；系统可能要求额外确认。</p>"
 )
 
 
-def description_from_notes(path):
-    """Build Sparkle's plain-text update description from the public release notes."""
-    lines = Path(path).read_text(encoding="utf-8").splitlines()
+def _section_lines(lines, heading):
     try:
-        start = lines.index("## 本次更新") + 1
-        end = lines.index("## 系统与安装包", start)
+        start = lines.index(heading) + 1
     except ValueError as error:
-        raise ValueError("Release notes must contain 本次更新 and 系统与安装包 sections") from error
+        raise ValueError("Release notes missing section: " + heading) from error
+    end = next((index for index in range(start, len(lines))
+                if lines[index].startswith("## ")), len(lines))
+    return lines[start:end]
 
-    updates = []
-    paragraph = []
 
-    def flush_paragraph():
-        if paragraph:
-            updates.append("• " + " ".join(paragraph))
-            paragraph.clear()
-
-    for raw in lines[start:end]:
-        line = raw.strip()
-        if not line:
-            flush_paragraph()
-        elif line.startswith("- "):
-            flush_paragraph()
-            updates.append("• " + line[2:].strip())
-        else:
-            paragraph.append(line)
-    flush_paragraph()
-    if not updates:
-        raise ValueError("Release notes 本次更新 section is empty")
-    return "本次更新：\n" + "\n".join(updates) + "\n\n" + INSTALL_DESCRIPTION
+def description_from_notes(path):
+    """Build a compact, formatted Sparkle HTML description from release notes."""
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    heading = "## 更新摘要" if "## 更新摘要" in lines else "## 本次更新"
+    items = [line.strip()[2:].strip() for line in _section_lines(lines, heading)
+             if line.strip().startswith("- ")]
+    if not items:
+        raise ValueError(heading + " section must contain at least one bullet")
+    bullets = "".join("<li>" + html.escape(item, quote=False) + "</li>" for item in items)
+    return "<h3>本次更新</h3><ul>" + bullets + "</ul>" + INSTALL_DESCRIPTION
 
 
 def make_xml(manifest, arch, signature, description):
@@ -87,7 +79,7 @@ def make_xml(manifest, arch, signature, description):
     ET.SubElement(item, "{" + NS + "}version").text = str(manifest["build"])
     ET.SubElement(item, "{" + NS + "}shortVersionString").text = manifest["version"]
     ET.SubElement(item, "{" + NS + "}minimumSystemVersion").text = manifest["minimumSystemVersion"]
-    ET.SubElement(item, "description").text = description
+    ET.SubElement(item, "description", {"{" + NS + "}format": "html"}).text = description
     ET.SubElement(item, "enclosure", {
         "url": package["url"], "length": str(package["size"]),
         "type": "application/octet-stream", "{" + NS + "}edSignature": signature,

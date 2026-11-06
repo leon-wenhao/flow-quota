@@ -106,7 +106,7 @@ class ReleaseBundleTests(unittest.TestCase):
             self.assertNotIn(secret, public)
         notes = (self.output / "RELEASE-NOTES.md").read_text()
         self.assertEqual(notes.splitlines()[0], "# 1.2.3")
-        for text in ("功能概述", "macOS 14.0", "arm64", "x86_64", "ad-hoc", "公证",
+        for text in ("功能概述", "更新摘要", "macOS 14.0", "arm64", "x86_64", "ad-hoc", "公证",
                      "隐私与安全性", "仍要打开", "不阻断连接"):
             self.assertIn(text, notes)
         for text in ("其他未识别（Clash）", "网络分类修正", "全部来源排行", "停止采集进度",
@@ -128,11 +128,16 @@ class ReleaseBundleTests(unittest.TestCase):
             data = (self.output / name).read_bytes()
             length = int(bundle.sparkle_feed.SIGNATURE.search(data)[2])
             root = ET.fromstring(data[:length])
-            description = root.find("channel/item/description").text
+            description_node = root.find("channel/item/description")
+            description = description_node.text
             descriptions.append(description)
             for text in expected:
                 self.assertIn(text, description)
-            self.assertTrue(description.startswith("本次更新：\n• "))
+            self.assertEqual(description_node.get("{" + bundle.sparkle_feed.NS + "}format"), "html")
+            self.assertTrue(description.startswith("<h3>本次更新</h3><ul><li>"))
+            self.assertIn("</li><li>", description)
+            self.assertIn("<h3>安装与安全</h3>", description)
+            self.assertNotIn("<h3>系统与安装包</h3>", description)
             self.assertNotEqual(description, old_description)
         self.assertEqual(descriptions[0], descriptions[1])
 
