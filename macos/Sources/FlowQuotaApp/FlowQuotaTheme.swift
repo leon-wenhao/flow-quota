@@ -91,6 +91,8 @@ private struct FlowQuotaSegmentButtonStyle: ButtonStyle {
             .font(.subheadline.weight(isSelected ? .semibold : .medium))
             .foregroundStyle(isSelected ? Color.primary : FlowQuotaTheme.muted)
             .frame(minHeight: 26)
+            // Hit testing must include the expanded option, including transparent unselected padding.
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .background(
                 isSelected ? AnyShapeStyle(FlowQuotaTheme.accent.opacity(0.12)) : AnyShapeStyle(Color.clear),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)

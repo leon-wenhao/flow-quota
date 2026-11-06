@@ -1,4 +1,4 @@
-"""Publish an audited bundle to the independent public repository.
+"""Publish an audited bundle to the public source repository.
 
 Draft retries reuse identical assets. Published releases are immutable here.
 Manifest activation happens only after a complete, published release exists.
@@ -6,12 +6,11 @@ Manifest activation happens only after a complete, published release exists.
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 
-from public_repository import (PUBLIC_REPO, ROOT, api, audit_public_history,
-                               check_repositories, commit_public_files, ensure_public_tag,
-                               read_public_file, run)
+from public_repository import PUBLIC_REPO, ROOT, api, check_repositories, ensure_public_tag, run
 from release_bundle import validate_bundle
 
 
@@ -53,32 +52,31 @@ def activate_manifest(bundle, repo, tag):
     if release is None or release["draft"]:
         raise ValueError("Cannot activate an unpublished release")
     verify_assets(api("repos/{}/releases/{}/assets".format(repo, release["id"])), assets, True)
-    head, data = read_public_file(repo, "update-manifest.json")
-    if data is not None:
-        old = json.loads(data)
-        old_version = tuple(map(int, old["version"].split("."))) + (old["build"],)
+    latest = api("repos/" + repo + "/releases/latest", allow_missing=True)
+    if latest is not None:
+        match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)-build\.(\d+)", latest["tag_name"])
+        if not match:
+            raise ValueError("Latest release has an unsupported tag")
+        old_version = tuple(map(int, match.groups()))
         new_version = tuple(map(int, manifest["version"].split("."))) + (manifest["build"],)
         if old_version > new_version:
-            raise ValueError("Refusing to roll back the public update manifest")
-        if old_version == new_version and data != (bundle / "update-manifest.json").read_bytes():
-            raise ValueError("Same version already has a different public manifest")
-    commit_public_files(repo, {"update-manifest.json": (bundle / "update-manifest.json").read_bytes()},
-                        "release: activate " + tag, expected_head=head)
+            raise ValueError("Refusing to roll back the latest release")
+    # latest/download/update-manifest.json is activated only after the complete release is verified.
+    run("gh", "release", "edit", tag, "--repo", repo, "--latest")
 
 
 def publish(bundle, repo, activate):
     check_repositories(repo)
-    audit_public_history(repo)
     if run("git", "status", "--porcelain", cwd=ROOT):
         raise ValueError("Commit reviewed source changes before publishing")
     bundle = Path(bundle).resolve()
     manifest, assets = validate_bundle(bundle, repo)
     tag = "v{}-build.{}".format(manifest["version"], manifest["build"])
+    source_commit = json.loads((bundle / "release-manifest.json").read_text())["sourceCommit"]
+    ensure_public_tag(repo, tag, source_commit)
     release = release_for_tag(repo, tag)
     if release is None:
-        # This API tag points only to the independent public main history.
-        ensure_public_tag(repo, tag)
-        run("gh", "release", "create", tag, "--repo", repo, "--verify-tag", "--draft",
+        run("gh", "release", "create", tag, "--repo", repo, "--verify-tag", "--draft", "--latest=false",
             "--title", "Flow Quota {}".format(manifest["version"]),
             "--notes-file", str(bundle / "RELEASE-NOTES.md"))
         release = release_for_tag(repo, tag)
@@ -91,12 +89,12 @@ def publish(bundle, repo, activate):
         if missing:
             run("gh", "release", "upload", tag, "--repo", repo, *missing)
         verify_assets(api("repos/{}/releases/{}/assets".format(repo, release["id"])), assets, True)
-        run("gh", "release", "edit", tag, "--repo", repo, "--draft=false", "--latest")
+        run("gh", "release", "edit", tag, "--repo", repo, "--draft=false", "--latest=false")
     # A repeated call may only verify a published release, never replace its assets.
     print("Published: https://github.com/{}/releases/tag/{}".format(repo, tag))
     if activate:
         activate_manifest(bundle, repo, tag)
-        print("Activated public update-manifest.json")
+        print("Activated latest Release update-manifest.json")
     else:
         print("Manifest not activated; rerun with --activate-manifest after review")
 

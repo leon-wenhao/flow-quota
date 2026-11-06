@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION_FILE="$ROOT/macos/Configuration/version.env"
-REPO="leon-wenhao/flow-quota-releases"
+REPO="leon-wenhao/flow-quota"
 OUTPUT_DIR=""
 PUBLISH=false
 ACTIVATE=false
@@ -13,11 +13,11 @@ usage() {
     cat <<'USAGE'
 Usage: scripts/release-macos.sh [options]
 
-Build two macOS DMGs and an audited release bundle. Source remains private.
+Build two macOS DMGs and an audited release bundle. Source and DMGs share the public project repository.
   --output-dir PATH        New local output directory
-  --publish                Publish to the independent public repository through GitHub REST API
-  --activate-manifest      Activate public main manifest after release verification
-  --repo OWNER/REPO        Must be leon-wenhao/flow-quota-releases
+  --publish                Publish to the public source repository through GitHub REST API
+  --activate-manifest      Activate latest Release manifest after verification
+  --repo OWNER/REPO        Must be leon-wenhao/flow-quota
 
 Set versions with scripts/set-version.sh before building.
 Resume publication without rebuilding:
@@ -34,8 +34,8 @@ while (($#)); do
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
 done
-[[ "$REPO" == "leon-wenhao/flow-quota-releases" ]] || {
-    echo "Only the independent public distribution repository is permitted." >&2; exit 2;
+[[ "$REPO" == "leon-wenhao/flow-quota" ]] || {
+    echo "Only the public source repository leon-wenhao/flow-quota is permitted." >&2; exit 2;
 }
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$BUILD" =~ ^[1-9][0-9]*$ ]] || {
     echo "Invalid canonical version/build." >&2; exit 2;
@@ -43,13 +43,18 @@ done
 if $ACTIVATE && ! $PUBLISH; then
     echo "--activate-manifest requires --publish." >&2; exit 2
 fi
+[[ -z "$(git -C "$ROOT" status --porcelain)" ]] || {
+    echo "Commit reviewed source changes before building a release bundle." >&2; exit 1;
+}
 if $PUBLISH; then
-    [[ -z "$(git -C "$ROOT" status --porcelain)" ]] || {
-        echo "Commit reviewed source changes before publishing." >&2; exit 1;
-    }
     command -v gh >/dev/null || { echo "Install gh and authenticate first." >&2; exit 1; }
     gh auth status --hostname github.com >/dev/null
-    /usr/bin/python3 "$ROOT/scripts/public_repository.py" --repo "$REPO"
+    /usr/bin/python3 - "$ROOT/scripts" "$REPO" <<'PY_CHECK'
+import sys
+sys.path.insert(0, sys.argv[1])
+from public_repository import check_repositories
+check_repositories(sys.argv[2])
+PY_CHECK
 fi
 INFO="$ROOT/macos/Configuration/Info.plist"
 [[ "$(/usr/bin/plutil -extract CFBundleShortVersionString raw "$INFO")" == "$VERSION" &&
@@ -66,11 +71,13 @@ PY
 [[ -n "$OUTPUT_DIR" ]] || OUTPUT_DIR="$ROOT/.artifacts/releases/FlowQuota-$VERSION-build-$BUILD"
 [[ "$OUTPUT_DIR" = /* ]] || OUTPUT_DIR="$ROOT/$OUTPUT_DIR"
 [[ ! -e "$OUTPUT_DIR" ]] || { echo "Output already exists; choose a new directory." >&2; exit 1; }
+SOURCE_COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
 mkdir -p "$OUTPUT_DIR"
 "$ROOT/scripts/build-macos.sh" --release --arm64 --dmg-output "$OUTPUT_DIR/FlowQuota-$VERSION-arm64.dmg"
 "$ROOT/scripts/build-macos.sh" --release --x64 --dmg-output "$OUTPUT_DIR/FlowQuota-$VERSION-x86_64.dmg"
 /usr/bin/python3 "$ROOT/scripts/release_bundle.py" prepare --output "$OUTPUT_DIR" \
-    --source-manifest "$ROOT/update-manifest.json" --repo "$REPO" --version "$VERSION" --build "$BUILD"
+    --source-manifest "$ROOT/update-manifest.json" --repo "$REPO" --version "$VERSION" --build "$BUILD" \
+    --source-commit "$SOURCE_COMMIT"
 if $PUBLISH; then
     ARGS=(--bundle "$OUTPUT_DIR" --repo "$REPO")
     if $ACTIVATE; then ARGS+=(--activate-manifest); fi

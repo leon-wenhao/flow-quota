@@ -12,3 +12,6 @@ xcuserdata/
 # Local Python tooling caches.
 __pycache__/
 *.pyc
+
+# Installer binaries are uploaded as Release assets, never source commits.
+*.dmg

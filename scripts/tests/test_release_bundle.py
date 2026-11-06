@@ -15,7 +15,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "release_bundle.py"
 SPEC = importlib.util.spec_from_file_location("release_bundle", SCRIPT)
 bundle = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(bundle)
-REPO = "leon-wenhao/flow-quota-releases"
+REPO = "leon-wenhao/flow-quota"
 VERSION = "1.2.3"
 BUILD = 18
 TAG = "v1.2.3-build.18"
@@ -46,7 +46,7 @@ class ReleaseBundleTests(unittest.TestCase):
         path.write_text(json.dumps(data), encoding="utf-8")
 
     def prepare(self, **changes):
-        args = dict(output=self.output, source_manifest=self.source, repo=REPO,
+        args = dict(output=self.output, source_manifest=self.source, repo=REPO, source_commit="a" * 40,
                     version=VERSION, build=BUILD)
         args.update(changes)
         return bundle.prepare_bundle(**args)
@@ -80,7 +80,7 @@ class ReleaseBundleTests(unittest.TestCase):
             })
         release = json.loads((self.output / "release-manifest.json").read_text())
         self.assertEqual(set(release), {"version", "build", "releaseURL", "minimumSystemVersion",
-                                        "assets", "signing", "notarized"})
+                                        "assets", "signing", "notarized", "sourceCommit"})
         self.assertEqual(release["signing"], "ad-hoc")
         self.assertIs(release["notarized"], False)
         public = "\n".join((self.output / name).read_text() for name in bundle.METADATA)
@@ -244,7 +244,7 @@ class ReleaseBundleTests(unittest.TestCase):
 
     def test_cli_prepare_validate_and_failure(self):
         common = [sys.executable, "-B", str(SCRIPT)]
-        for args in (["prepare", "--source-manifest", str(self.source), "--version", VERSION,
+        for args in (["prepare", "--source-commit", "a" * 40, "--source-manifest", str(self.source), "--version", VERSION,
                       "--build", str(BUILD)], ["validate"]):
             result = subprocess.run(common + args + ["--output", str(self.output), "--repo", REPO],
                                     capture_output=True, text=True)

@@ -12,9 +12,9 @@ private struct StubUpdateLoader: UpdateDataLoading {
 }
 
 struct UpdateCheckerTests {
-    @Test func defaultUpdateEndpointUsesPublicDistributionRepository() {
+    @Test func defaultUpdateEndpointUsesLatestSourceRepositoryRelease() {
         #expect(UpdateChecker.defaultManifestURL.absoluteString ==
-            "https://raw.githubusercontent.com/leon-wenhao/flow-quota-releases/main/update-manifest.json")
+            "https://github.com/leon-wenhao/flow-quota/releases/latest/download/update-manifest.json")
     }
 
     @Test func comparesMarketingVersionThenBuild() throws {

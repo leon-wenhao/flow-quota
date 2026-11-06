@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Offline release metadata for the public binary repository (Python 3.9+).
 
-Only version/build/minimumSystemVersion are read from the private source manifest.
+Only version/build/minimumSystemVersion are read from the source build manifest.
 The publisher must upload validate_bundle's explicit paths, never a directory glob.
 SHA256 uses incremental update: https://docs.python.org/3.9/library/hashlib.html
 """
@@ -96,7 +96,7 @@ def _checksums(assets):
 
 
 def _notes(version, build, minimum):
-    # Fixed text prevents private source metadata from entering public notes.
+    # Fixed user-facing notes keep local build paths out of release attachments.
     return """# Flow Quota {version}
 
 ## 功能概述
@@ -125,13 +125,15 @@ Flow Quota 在 macOS 菜单栏提供流量采样统计、应用用量分析和�
 """.format(version=version, build=build, minimum=minimum)
 
 
-def prepare_bundle(output, source_manifest, repo, version, build):
+def prepare_bundle(output, source_manifest, repo, version, build, source_commit):
     """Generate four public metadata files beside two existing DMGs, then validate.
 
     Raises ValueError/OSError for invalid inputs; does not build or upload anything.
     Source identity must match the explicit release arguments. Other source fields
-    are intentionally never copied, including source paths and commit identifiers.
+    are intentionally never copied. Only the explicit source_commit is recorded for tag verification.
     """
+    _require(isinstance(source_commit, str) and re.fullmatch(r"[0-9a-f]{40}", source_commit),
+             "Invalid source commit")
     output = Path(output)
     source = _read_json(Path(source_manifest))
     minimum = source.get("minimumSystemVersion")
@@ -159,7 +161,7 @@ def prepare_bundle(output, source_manifest, repo, version, build):
     }
     release = {"version": version, "build": build, "releaseURL": release_url,
                "minimumSystemVersion": minimum, "assets": assets,
-               "signing": "ad-hoc", "notarized": False}
+               "signing": "ad-hoc", "notarized": False, "sourceCommit": source_commit}
     _write_json(output / "update-manifest.json", manifest)
     _write_json(output / "release-manifest.json", release)
     (output / "SHA256SUMS").write_text(_checksums(assets), encoding="utf-8")
@@ -212,7 +214,10 @@ def validate_bundle(output, repo):
         assets.append(asset)
     release = _read_json(output / "release-manifest.json")
     _keys(release, ("version", "build", "releaseURL", "minimumSystemVersion", "assets",
-                    "signing", "notarized"))
+                    "signing", "notarized", "sourceCommit"))
+    source_commit = release["sourceCommit"]
+    _require(isinstance(source_commit, str) and re.fullmatch(r"[0-9a-f]{40}", source_commit),
+             "Invalid source commit")
     _require(type(release["build"]) is int and release["notarized"] is False,
              "Invalid release build/notarization")
     _require(isinstance(release["assets"], list) and len(release["assets"]) == 2,
@@ -222,7 +227,8 @@ def validate_bundle(output, repo):
         _require(type(asset["size"]) is int, "Invalid release asset size")
     _require(release == {"version": version, "build": build, "releaseURL": release_url,
                         "minimumSystemVersion": minimum, "assets": assets,
-                        "signing": "ad-hoc", "notarized": False}, "Release manifest mismatch")
+                        "signing": "ad-hoc", "notarized": False, "sourceCommit": source_commit},
+             "Release manifest mismatch")
     _require((output / "SHA256SUMS").read_text(encoding="utf-8") == _checksums(assets),
              "SHA256SUMS mismatch")
     _require((output / "RELEASE-NOTES.md").read_text(encoding="utf-8") == _notes(version, build, minimum),
@@ -239,6 +245,7 @@ def main(argv=None):
         child.add_argument("--repo", required=True)
         if command == "prepare":
             child.add_argument("--source-manifest", required=True, type=Path)
+            child.add_argument("--source-commit", required=True)
             child.add_argument("--version", required=True)
             child.add_argument("--build", required=True)
     args = parser.parse_args(argv)
@@ -246,7 +253,7 @@ def main(argv=None):
         if args.command == "prepare":
             _require(re.fullmatch(r"[1-9][0-9]*", args.build), "Invalid build")
             manifest, assets = prepare_bundle(args.output, args.source_manifest, args.repo,
-                                              args.version, int(args.build))
+                                              args.version, int(args.build), args.source_commit)
         else:
             manifest, assets = validate_bundle(args.output, args.repo)
     except (ValueError, OSError) as error:

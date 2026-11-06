@@ -1,5 +1,7 @@
 # 公开分发验证记录
 
+> 2026-11-06：以下旧的私有源码／独立分发记录作为历史保留；当前执行方案已改为 [开源与单仓库发布](public-distribution-plan.md)。旧仓库删除后，其历史链接不再可用。
+
 日期：2026-11-06。环境：macOS 27.2 / Apple Silicon、Xcode 27.2、Swift 6.4.2、最低 macOS 14；系统 Python 3.9.6、GitHub CLI 2.103.3。
 
 ## 本地结果

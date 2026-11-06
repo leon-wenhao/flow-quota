@@ -1,105 +1,58 @@
-# macOS 双仓库发布流程
+# macOS 单仓库发布
 
-源码仓库 `leon-wenhao/flow-quota` 保持私有。下载、Issues、Release 和客户端清单使用独立公开仓库 `leon-wenhao/flow-quota-releases`。完整边界见 [分发方案](public-distribution-plan.md)。当前包只有 ad-hoc 开发签名，未 Developer ID 签名或 Apple 公证。
+源码与安装包统一发布到公开仓库 `leon-wenhao/flow-quota`，采用 MIT 许可证。DMG 是 Release 附件，不加入 Git 历史。方案见 [单仓库方案](public-distribution-plan.md)。
 
-## 初始化与更新公开资料
+## 日常发布
 
-需要官方 GitHub CLI、账号仓库写权限；先执行 `gh auth status`。凭据不写入代码或命令参数。首次建立空公开仓库：
-
-```bash
-gh repo create leon-wenhao/flow-quota-releases --public \
-  --description 'Flow Quota macOS 安装包、使用说明与反馈（闭源分发）'
-```
-
-同步公开资料：
+先完成并审查源码，再设置版本。对外标题只显示三段版本号，内部 build 必须递增；tag 例如 `v0.1.3-build.24`。
 
 ```bash
-/usr/bin/python3 -B scripts/public_repository.py
-```
-
-脚本只允许 `distribution/public/` 中的 README、INSTALL、DISTRIBUTION 和 `assets/logo.png`。它检查源仓库私有、目标仓库公开，审计公开分支与 tag 的所有祖先文件，然后通过官方 Contents／Git Trees／Commits／Refs API 提交独立历史。公开提交使用 GitHub noreply 邮箱。
-
-首次仅用 README 初始化空仓库，再以 Git tree 原子提交其余资料；以 `force: false` 更新 main。后续同步只提交有变化的白名单文件，不复制源码历史。公开历史发现额外文件或符号链接时停止，不用删除文件假装撤销泄漏。
-
-本机原生 Git 到 github.com:443 曾出现 HTTP/2 传输失败、HTTP/1.1 连接超时；API 端点正常，因此公开发布使用官方 REST API，不依赖本地公开 clone。GitHub 自动生成的 Source code 压缩包仅包含公开资料，不含应用源代码。
-
-## 版本与本地验证
-
-`version.env` 是版本源，build 递增。对外 Release 标题、发布说明标题及应用内版本仅展示三段版本号（如 `Flow Quota 0.1.1`），不附加括号中的 build；内部构建号、清单及唯一 tag 保留用于更新排序和追踪。tag 使用 `v版本-build.构建号`，不覆盖正式版本。例如：
-
-```bash
-./scripts/set-version.sh 0.1.0 19 \
-  --release-url https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.0-build.19
-/usr/bin/python3 -B -m unittest discover -s scripts/tests -v
-./scripts/test-macos.sh
-./scripts/release-macos.sh
-```
-
-默认输出为 `.artifacts/releases/FlowQuota-0.1.0-build-19/`；可用 `--output-dir` 指定新的目录，已有目录不能覆盖。构建脚本去除 debug／local 符号后签名，`verify_macos_app.py` 检查明确的 app 文件清单、主程序与 Agent 架构、macOS 14 deployment target、本机路径及签名。临时 DMG staging 在退出时清理。Intel 交叉编译通过不等于 Intel 真机运行验收。
-
-禁止为验收生成热点测速或上传／下载实验流量。使用本地包与模拟响应验证，不下载公开 DMG 做对照实验。
-
-## 发布与激活
-
-先审查并提交实际打包的私有源码和相关文件，并同步私有 origin。源码提交和公开资料提交分别处理。发布器不替用户自动提交源码。已有本地 bundle 可以直接发布：
-
-```bash
-/usr/bin/python3 -B scripts/publish_macos.py \
-  --bundle .artifacts/releases/FlowQuota-0.1.0-build-19 \
-  --activate-manifest
-```
-
-也可以新构建与发布一起执行：
-
-```bash
+./scripts/set-version.sh 0.1.3 24
+git add <本次需要发布的文件>
+git commit -m "release: prepare 0.1.3"
+git push origin main
 ./scripts/release-macos.sh --publish --activate-manifest
 ```
 
-流程：
-
-1. 检查仓库隔离、私有源码 clean 状态与公开历史白名单，重新核算本地包大小和 SHA-256。
-2. 仅用公开 main 的提交建立 tag，创建 Release 草稿。
-3. 显式上传两个架构 DMG、SHA256SUMS、release-manifest.json、update-manifest.json、RELEASE-NOTES.md，拒绝目录额外文件及符号链接。
-4. 核对 GitHub 返回的每个资产名称、上传状态、size、SHA-256 digest，全部符合才发布 Release。
-5. 再核对正式 Release，最后只向公开 main 提交更新清单。更新 refs 不强推；同版本不同清单、版本回退或并发 main 变化均停止。
-
-源码 SHA 不进入公开 tag 或附件；根清单只是构建输入，真正供客户端使用的激活清单在公开仓库。
-
-## 失败与恢复
-
-- 草稿创建后列表尚未返回：先只读核实草稿，确认存在后重复同一命令；未查到草稿时不激活清单。
-- 上传中断：保留草稿和本地 bundle，重复同一 `publish_macos.py` 命令。只补传缺失项，已有项必须摘要一致，不用 `--clobber`。
-- 附件不符或出现额外文件：停止，查明原因后人工修复草稿。不要激活清单或覆盖正式版本。
-- Release 成功、清单提交失败：重复同一命令，验证正式资产后再提交清单；不重传正式附件。
-- 重新构建发布：提高 build，使用新 tag。不要修改已正式发布的二进制。
-- GitHub 缺少写权限：保留可审查的本地包，恢复权限后继续，不能把源码仓库改公开解决。
-
-## 客户端与当前限制
-
-默认地址为公开仓库 `main/update-manifest.json`。用户主动检查，按当前架构下载，验证 size/SHA-256 后打开 DMG，由用户手动拖拽替换。旧版本需要手动安装一次包含新地址的版本。没有静默替换、后台自动更新或网络阻断。
-
-安装说明明确 ad-hoc、未公证；使用 Apple 正常的单应用打开入口，不提供关闭系统安全机制的命令。发布仓库隔离保护源码和历史，不能保证二进制无法被逆向。
-
-官方 API、CLI 与 Apple 依据见 `docs/official-references.md`；实际结果见 `docs/public-distribution-verification.md`。
-
-## DMG 安装窗口布局（2026-11-06）
-
-`build-macos.sh` 的开发／发布 DMG 共用 `package-macos-dmg.sh`。窗口内容为 720 × 500 点：Flow Quota 在左、Applications 在右，中间为拖拽箭头，底部显示安装步骤、ad-hoc／未公证状态和可打开的 `安装说明.txt`。卷名仅显示产品名与三段版本号。
-
-`GenerateDMGBackground.swift` 使用系统 AppKit 生成 1×／2× TIFF；图标仍为 Finder 的真实文件。脚本先以最终卷名创建可写镜像，挂载到 `/Volumes/`（避免元数据带入本地源码路径），再通过 Finder 的公开 AppleScript 字典设置图标视图、固定位置、窗口边界及卷内隐藏背景，确认 `.DS_Store` 已写出后，卸载，转换为只读 UDZO。macOS 27 使用本机 `diskutil image`；旧系统保留 `hdiutil` 分支。不引入第三方 DMG／Python 依赖。临时工作目录在退出时清理；卸载失败则保留并报错，避免删除挂载内容。
-
-构建前需推出已挂载的同版本 DMG；检测到同名卷时脚本明确报错，不替使用者推出卷。背景别名在最终卷名确定后生成，避免改名后失效。构建布局需要登录的图形会话及终端对 Finder 的自动化授权；授权失败会停止打包并返回实际错误，不输出布局成功提示。使用者打开成品 DMG 不需要该授权。只重新打包已构建的本地应用：
+日常修改建议在 `codex/功能名` 分支完成并合入 `main`；发布从干净、已经推送的源码执行。脚本不会提交工作区修改、公开仓库或删除仓库；这些是本次迁移的一次性操作。先仅本地打包：
 
 ```bash
-./scripts/package-macos-dmg.sh "$PWD/.artifacts/arm64/Flow Quota.app" \
-  "$PWD/.artifacts/FlowQuota-layout-arm64.dmg"
+./scripts/release-macos.sh
 ```
 
-输出路径必须是新的绝对路径；不覆盖已发布附件。布局验证需重新挂载最终只读包，检查背景、左右位置、说明文件及 Applications 链接。当前主机验证不代替最低 macOS 14 或 Intel 真机验收。
+输出默认位于 `.artifacts/releases/FlowQuota-版本-build-构建号/`；已存在的目录不能覆盖，可指定 `--output-dir`。
 
-2026-11-06 本机验证（macOS 27.2、Swift 6.4.2 / Xcode 27.2）：
+## 发布与更新顺序
 
-- 复用 0.1.1 build 22 的两个已构建应用，生成 `.artifacts/FlowQuota-0.1.1-installer-arm64.dmg` 与 `FlowQuota-0.1.1-installer-x86_64.dmg`，未上传或替换公开附件。
-- 最终 UDZO 均以只读方式重新挂载：应用签名／版本／架构审计通过，Applications 指向 `/Applications`，说明文件与源文件一致；保存的三个图标坐标分别为 `(180, 180)`、`(540, 180)`、`(610, 370)`。背景别名在原临时卷卸载及目录删除后，仍解析到重新挂载成品内的 TIFF；逻辑尺寸 720 × 500，含 720 × 500 与 1440 × 1000 两个 bitmap。Finder 元数据不含 `/Users/` 或 HFS 用户目录路径。
-- 已验证同版本卷已挂载时的提前失败提示；正常打包后临时工作目录均清理。Shell 语法及 `git diff --check` 通过，现有 Python 发布／打包测试共 52 项通过。
-- Finder 脚本已在打包时重新打开并核对保存的图标视图与左右位置。独立原生截图工具返回 `cgWindowNotFound`，本轮尚未取得最终窗口截图，不能视为完成截图目视验收。macOS 14–26 分支及 Intel 真机运行未验证；未进行任何热点流量实验。
+1. 验证 origin 与目标都是 `leon-wenhao/flow-quota`，仓库公开、可用且默认分支为 main；工作区干净。
+2. 构建 Apple silicon 与 Intel 的 release DMG，检查 app/Agent 签名、架构、版本和最小系统版本；保存实际源码提交。
+3. 使用明确的六文件白名单：两个 DMG、`SHA256SUMS`、`release-manifest.json`、`update-manifest.json`、`RELEASE-NOTES.md`。拒绝额外文件、目录和符号链接。
+4. 验证 bundle 的 sourceCommit 属于远端 main；tag 必须准确指向该提交。建立草稿，按白名单上传；核对 GitHub 返回的名称、上传状态、大小和 SHA-256 后发布，暂不标记 latest。
+5. `--activate-manifest` 再次验证正式附件，拒绝版本回退后标记 latest。客户端地址固定为：
+   `https://github.com/leon-wenhao/flow-quota/releases/latest/download/update-manifest.json`。
+
+根目录 `update-manifest.json` 只是构建输入，设置下一个版本不影响在线更新。更新入口不依赖 main 新增提交，也不使用跨仓库同步。所有版本发布操作应串行执行，避免同时改变 latest。
+
+## 中断恢复
+
+保留原 bundle，重试以下命令，不重新构建或覆盖正式附件：
+
+```bash
+python3 scripts/publish_macos.py   --bundle .artifacts/releases/FlowQuota-0.1.3-build-24   --activate-manifest
+```
+
+草稿只补传缺失项，已上传项必须摘要相同；正式版仅核验，不使用 `--clobber`。若正式版已发布但 latest 激活失败，重复命令只会核对并恢复激活。源码或附件有变动时使用新 build，不改写原 tag。
+
+## 安装与构建限制
+
+更新只由用户点击触发。按架构下载并校验大小和 SHA-256 后打开 DMG，由用户拖拽替换；没有后台自动更新、静默替换或网络阻断。
+
+DMG 固定图标视图：Flow Quota 在左、Applications 在右、中间箭头、底部安装提示及说明文件。构建布局需要登录图形会话和 Finder 自动化授权，失败时明确停止；用户打开成品无需此授权。同版本卷已挂载时先手动推出。可单独打包：
+
+```bash
+./scripts/package-macos-dmg.sh "$PWD/.artifacts/arm64/Flow Quota.app"   "$PWD/.artifacts/FlowQuota-installer-arm64.dmg"
+```
+
+当前仅 ad-hoc 签名，未 Developer ID 签名或 Apple 公证。按 [安装说明](../INSTALL.md) 使用系统“隐私与安全性 → 仍要打开”入口。构建通过不代表 macOS 14 或 Intel 真机运行验收；不使用热点流量做实验性验证。
+
+本次迁移没有旧版使用者，不保留旧入口；历史 0.1.2 仅归档安装包，新版本使用本仓库更新地址。执行结果见 [验证记录](public-distribution-verification.md)，官方依据见 [本次资料](single-repository-official-references.md)。

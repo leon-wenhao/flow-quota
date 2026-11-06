@@ -184,7 +184,7 @@ extension URLSession: UpdateDataLoading {}
 
 struct UpdateChecker: Sendable {
     static let defaultManifestURL = URL(string:
-        "https://raw.githubusercontent.com/leon-wenhao/flow-quota-releases/main/update-manifest.json")!
+        "https://github.com/leon-wenhao/flow-quota/releases/latest/download/update-manifest.json")!
 
     let endpoint: URL
     private let loader: any UpdateDataLoading

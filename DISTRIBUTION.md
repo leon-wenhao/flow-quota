@@ -4,11 +4,9 @@
 
 ## 分发范围与版权
 
-Flow Quota 采用闭源二进制分发。本公开仓库用于发布 macOS DMG、维护公开使用文档和接收 Issues，不包含应用源代码。
+Flow Quota 源码采用 [MIT 许可证](LICENSE) 开源；源码、使用文档、Issues 和安装包统一由本仓库维护。
 
-安装包入口：[最新发布版](https://github.com/leon-wenhao/flow-quota-releases/releases/latest)。支持 macOS 14 或更高版本，Apple 芯片选择 `arm64`，Intel 选择 `x86_64`。GitHub 自动生成的 **Source code (zip / tar.gz)** 仅是公开仓库文档与资源的归档，不是应用源代码或安装包。
-
-Flow Quota 的版权由权利人保留。此处没有授予应用或源码的开源许可，也没有授予额外的修改或再分发权限。公开仓库与可下载安装包本身不构成此类许可。
+安装包入口：[最新发布版](https://github.com/leon-wenhao/flow-quota/releases/latest)。支持 macOS 14 或更高版本，Apple 芯片选择 `arm64`，Intel 选择 `x86_64`。GitHub 自动生成的 **Source code (zip / tar.gz)** 是该 tag 对应源码的归档；安装软件请下载 DMG。
 
 当前安装包采用 ad-hoc 开发签名，尚未完成 Developer ID 签名与 Apple 公证。安装及安全提示的操作方式见[安装说明](INSTALL.md)。
 
@@ -37,4 +35,4 @@ Clash 来源累计及分钟汇总只保存在内存，按当天和网络类别�
 
 ## 问题反馈
 
-请在[公开 Issues](https://github.com/leon-wenhao/flow-quota-releases/issues)提供应用版本、macOS 版本、芯片类型、操作步骤和经过脱敏的错误提示。请勿上传原始数据库、测试数据库、日志、真实网络明细或含个人信息的截图。
+请在[公开 Issues](https://github.com/leon-wenhao/flow-quota/issues)提供应用版本、macOS 版本、芯片类型、操作步骤和经过脱敏的错误提示。请勿上传原始数据库、测试数据库、日志、真实网络明细或含个人信息的截图。

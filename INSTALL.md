@@ -4,7 +4,7 @@
 
 ## 选择安装包
 
-前往[最新发布版](https://github.com/leon-wenhao/flow-quota-releases/releases/latest)，阅读该版本说明，在附件中选择适用于 **macOS 14 或更高版本**的 DMG：
+前往[最新发布版](https://github.com/leon-wenhao/flow-quota/releases/latest)，阅读该版本说明，在附件中选择适用于 **macOS 14 或更高版本**的 DMG：
 
 | 「关于本机」显示 | 选择的架构标识 |
 | --- | --- |
@@ -32,7 +32,7 @@ GitHub 的 **Source code (zip / tar.gz)** 是公开文档与资源的归档，�
 2. 打开「系统设置」→「隐私与安全性」，找到对应拦截提示，点按「仍要打开」。
 3. 按系统要求认证，在再次出现的提示中确认「打开」。
 
-参考：[Apple：在 Mac 上安全地打开 App](https://support.apple.com/zh-cn/102445)。受管理的 Mac 可能无法使用此入口；如未出现该入口，或系统提示应用已损坏／将损坏电脑，请保留提示内容并通过[Issues](https://github.com/leon-wenhao/flow-quota-releases/issues)反馈。
+参考：[Apple：在 Mac 上安全地打开 App](https://support.apple.com/zh-cn/102445)。受管理的 Mac 可能无法使用此入口；如未出现该入口，或系统提示应用已损坏／将损坏电脑，请保留提示内容并通过[Issues](https://github.com/leon-wenhao/flow-quota/issues)反馈。
 
 ## 更新已有安装
 
@@ -45,4 +45,4 @@ GitHub 的 **Source code (zip / tar.gz)** 是公开文档与资源的归档，�
 
 「下载并安装」完成的是下载、校验和打开 DMG，**最终替换由你手动完成**。规则与偏好持续保留；重启后重新建立采样基线，Clash 来源的本次运行累计重新观测。
 
-若更新检查不可用，也可从[最新发布页](https://github.com/leon-wenhao/flow-quota-releases/releases/latest)下载对应 DMG，核对大小和 SHA-256 后按上述步骤替换。
+若更新检查不可用，也可从[最新发布页](https://github.com/leon-wenhao/flow-quota/releases/latest)下载对应 DMG，核对大小和 SHA-256 后按上述步骤替换。

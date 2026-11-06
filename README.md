@@ -1,5 +1,13 @@
 # Flow Quota
 
+macOS 菜单栏流量统计与阈值提醒工具，采用 [MIT 许可证](LICENSE) 开源。
+
+- [下载安装包](https://github.com/leon-wenhao/flow-quota/releases/latest)：Apple 芯片选 `arm64.dmg`，Intel 选 `x86_64.dmg`。
+- [安装与更新](INSTALL.md) · [分发与数据说明](DISTRIBUTION.md) · [反馈问题](https://github.com/leon-wenhao/flow-quota/issues)。
+- 当前安装包使用 ad-hoc 签名，尚未 Apple 公证；只统计和提醒，不阻断网络。
+- 源码和安装包统一在本仓库维护；发布流程见 [发布说明](docs/release-macos.md)。
+
+
 <img src="assets/brand/logo-preview.png" alt="Flow Quota Logo" width="120" height="120">
 
 macOS 原生菜单栏工具：分别观测热点／高成本与普通网络接口总量，并分析各应用流量，配置接口每日总量、短时大流量及应用每日阈值，通过本地通知提醒。当前版本不自动阻断连接。Windows 只保留后续接入入口。
@@ -40,7 +48,7 @@ open ".artifacts/arm64/Flow Quota.app" --args --window
 
 ## 发布
 
-源码仓库保持私有，安装包和公开资料使用独立的 `leon-wenhao/flow-quota-releases` 仓库。流程见 [公开分发方案](docs/public-distribution-plan.md) 与 [macOS 发布流程](docs/release-macos.md)。使用 `scripts/set-version.sh` 同步版本号；通过 `scripts/public_repository.py` 同步公开资料后，运行 `scripts/release-macos.sh --publish --activate-manifest`，核对双架构 DMG 后发布并激活公开更新清单。客户端只在设置页点击“检查更新”时访问更新清单；发现更新后可下载并打开 DMG，用户手动将应用拖入 Applications。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，首次打开可能需要在系统设置的隐私与安全性中选择“仍要打开”。
+源码仓库按 MIT 公开，安装包和公开资料使用独立的 `leon-wenhao/flow-quota` 仓库。流程见 [公开分发方案](docs/public-distribution-plan.md) 与 [macOS 发布流程](docs/release-macos.md)。使用 `scripts/set-version.sh` 同步版本号；通过 `scripts/public_repository.py` 同步公开资料后，运行 `scripts/release-macos.sh --publish --activate-manifest`，核对双架构 DMG 后发布并激活公开更新清单。客户端只在设置页点击“检查更新”时访问更新清单；发现更新后可下载并打开 DMG，用户手动将应用拖入 Applications。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，首次打开可能需要在系统设置的隐私与安全性中选择“仍要打开”。
 
 ## 首次使用与验证
 

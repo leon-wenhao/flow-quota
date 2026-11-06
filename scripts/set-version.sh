@@ -72,11 +72,12 @@ manifest["version"] = os.environ["VERSION"]
 manifest["build"] = int(os.environ["BUILD"])
 manifest.pop("packages", None)
 manifest["publishedAt"] = None
+default_url = "https://github.com/leon-wenhao/flow-quota/releases/tag/v{}-build.{}".format(
+    manifest["version"], manifest["build"])
 for key, env_name in (("releaseNotesURL", "NOTES_URL"),
                       ("downloadURL", "DOWNLOAD_URL")):
     value = os.environ[env_name]
-    if value:
-        manifest[key] = value
+    manifest[key] = value or default_url
 with path.open("w", encoding="utf-8") as handle:
     json.dump(manifest, handle, ensure_ascii=False, indent=2)
     handle.write("\n")
