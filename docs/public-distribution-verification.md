@@ -50,3 +50,17 @@
 - 发布页：<https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.1-build.22>。本地 bundle：`.artifacts/releases/FlowQuota-0.1.1-build-22-release/`；验证证据：`.artifacts/release-0.1.1-*.log` 及 `.artifacts/release-0.1.1-online-verification.json`。
 - Raw 更新清单入口在当前网络再次出现 20 秒超时、0 bytes；公开发布与 API 清单验证成功不代表当前网络中的客户端检查更新已通过。该连通性限制仍未解除，未为验收下载公开 DMG。
 - 本轮仅打包发布，不替换本机正在采集的 App、不操作生产数据库；没有生成测试上传、下载或测速流量。ad-hoc、未公证及未完成 Intel 真机运行的边界保持不变。
+
+
+## 0.1.2 安装窗口布局发布（2026-11-06）
+
+- 对外名称 `Flow Quota 0.1.2`，内部构建号 23，唯一 tag `v0.1.2-build.23`。新增固定图标视图：左侧应用、右侧 Applications、中间拖拽箭头，底部安装提示和说明文件；背景包含 1×／2× 资源。背景别名在最终卷名下创建，元数据不带本地源码路径；构建时已挂载同版本卷会明确报错，不替用户推出。
+- 打包源码提交 `9fecaecfa9456493a740f193f9a33163e0e35060` 已推送私有 main；发布前通过 GitHub API 核对远端相同，源码仓库保持私有。公开仓库白名单、独立历史及公开资料同步检查通过。公开 tag 只来自公开仓库历史。
+- 341 项 Swift Testing、37 项 XCTest、52 项发布离线测试通过；两个架构 release 构建及应用文件白名单、架构、最低系统版本、严格签名审计通过。成品 DMG 重新只读挂载后，三个图标位置、Applications 链接、说明文件、背景别名与 Retina 尺寸均通过核对；主程序／Agent 二进制与本地构建逐字节一致，审计卷均已推出。
+- 正式发布于 `2026-11-06T11:21:03+08:00`（Asia/Shanghai），Release ID `436062348`，`draft=false`，已核对为 latest；六个附件状态、大小和 GitHub SHA-256 digest 全部一致。正式发布后激活公开清单，再通过 Contents／Git Blobs API 核对本地和公开清单逐字节一致；公开 main 清单提交为 `9c3a1aebc53223b0bd4921a9e1f677eaafc14e75`。
+- Apple Silicon DMG：2,461,184 bytes，SHA-256 `f2924a0386c8849a7664af46a03fe7d343477af289aed1b59f73c5d3123ddf49`。
+- Intel DMG：2,574,848 bytes，SHA-256 `cf371e8aae6d74e0919c737fb6d49254a0dfcf406933515b0fb6d83ce0dcc169`。
+- 发布页：<https://github.com/leon-wenhao/flow-quota-releases/releases/tag/v0.1.2-build.23>。本地 bundle：`.artifacts/releases/FlowQuota-0.1.2-build-23-release/`；证据：`.artifacts/release-0.1.2-*.log`、`.artifacts/release-0.1.2-online-verification.json` 及 `.artifacts/verify-release-0.1.2.py`。
+- 首次创建草稿后，GitHub 列表短暂未返回；脚本安全停止，清单未激活。只读确认草稿后复用同一 bundle 恢复，未重复建版或覆盖正式附件。
+- 当前仍为 ad-hoc 签名、未 Apple 公证；Intel 真机和 macOS 14–26 打包分支未新增验收。Finder 截图工具此前返回 `cgWindowNotFound`，此次以 Finder 保存后重开检查及成品元数据验证为依据，不声称完成最终窗口截图目视验收。Raw 客户端更新入口的历史连通性限制本轮未复验，API 清单一致不等于客户端端到端更新已验收。
+- 本次未替换本机运行中的应用、未操作生产数据库、未生成热点测试流量。上传的是用户授权的正式发布附件。
