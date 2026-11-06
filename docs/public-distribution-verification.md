@@ -66,3 +66,18 @@
 - 首次创建草稿后，GitHub 列表短暂未返回；脚本安全停止，清单未激活。只读确认草稿后复用同一 bundle 恢复，未重复建版或覆盖正式附件。
 - 当前仍为 ad-hoc 签名、未 Apple 公证；Intel 真机和 macOS 14–26 打包分支未新增验收。Finder 截图工具此前返回 `cgWindowNotFound`，此次以 Finder 保存后重开检查及成品元数据验证为依据，不声称完成最终窗口截图目视验收。Raw 客户端更新入口的历史连通性限制本轮未复验，API 清单一致不等于客户端端到端更新已验收。
 - 本次未替换本机运行中的应用、未操作生产数据库、未生成热点测试流量。上传的是用户授权的正式发布附件。
+
+
+## 单仓库迁移与开源（2026-11-06）
+
+- 依据用户更新，将 `leon-wenhao/flow-quota` 改为 PUBLIC，GitHub 已识别 MIT；源码、文档、Issues 与 DMG Releases 统一维护。用户明确目前没有旧版使用者，不实现旧入口兼容、重定向或过渡期。
+- 源码提交 `bfe41dd4f0f6aeb0526a169d5da5da0836d35a0e`、tree `93435a3ecdf1e0c273db40a6ba7a2f2e4c122095` 已同步远端，SHA 与本地完全一致。Git HTTPS 推送遇到 HTTP/2 framing 错误，改用 GitHub 官方 Git Database API 同步同一批 blob/tree/commit，并以 `force: false` 更新 main，没有改写提交。
+- 按常见 GitHub／服务凭据、AWS 访问密钥、私钥、嵌入凭据 URL 及敏感文件路径规则检查 471 个历史 blob 和当前文件，无匹配；此检查不构成对未知格式敏感数据的绝对保证。未上传 `.artifacts`、数据库、日志或本机配置。
+- 新版 0.1.3（内部 build 24）在隔离的干净源码副本构建；未包含原工作区另一项未提交 XPC 恢复修改。此前已授权的整块点击修复随源码提交包含。
+- Python 发布测试 30 项通过；隔离副本 Swift Testing 344 项、XCTest 37 项通过；Shell 语法和 diff 检查通过。Apple silicon／Intel release 构建、严格 ad-hoc 签名和架构／最小系统 macOS 14 静态审计通过。
+- 两份最终 0.1.3 DMG 重新以只读方式挂载验证：应用版本、build、架构、签名、Applications 链接、安装说明及 Finder 元数据通过；主程序包含本仓库 latest Release 清单地址且不含旧仓库地址。未做热点流量实验，未完成 macOS 14 或 Intel 真机运行验收。
+- 现有 0.1.2 两份 DMG 与旧仓库资产大小／SHA-256 完全相同，迁移到本仓库 `v0.1.2-build.23`，tag 准确指向原源码 `9fecaecfa9456493a740f193f9a33163e0e35060`，仅作历史归档，不作为 latest。Release 页面注明其内置旧更新地址。
+- 已正式发布 `v0.1.3-build.24`，对外标题 `Flow Quota 0.1.3`；6 个显式附件的 uploaded 状态、大小和 SHA-256 均与本地 bundle 一致，核对后标记 latest。匿名 HTTPS 访问 `releases/latest/download/update-manifest.json` 返回的 JSON 与本地已验证清单完全一致。
+- 0.1.3 DMG：arm64 2,461,696 bytes，SHA-256 `91f411bcedfed383da9aa73a75a97661b2d9945c223125e25ca4109360543a77`；x86_64 2,575,360 bytes，SHA-256 `1e2f920e75022b74796e919b14cf2e3986a0ba3dc2f935395581097f3b27ac6e`。
+- 删除旧仓库的 CLI API 请求返回 403，明确缺少 OAuth `delete_repo` scope；没有扩大令牌权限。已有 GitHub 网页会话可管理旧仓库，已准备到 `leon-wenhao/flow-quota-releases` 最终删除表单，尚未提交。电脑操作工具要求在删除云端数据的最终操作前当场确认，等待用户确认后完成并补记结果；不能声称旧仓库已删除。
+- 证据保存在本机 `.artifacts/single-repository/`；发布包位于 `.artifacts/releases/FlowQuota-0.1.3-build-24/`，不进入 Git 历史。
