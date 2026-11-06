@@ -16,6 +16,7 @@ import ServiceManagement
         let service = SMAppService.agent(plistName: AgentEndpoint.launchAgentPlist)
         let recovery = AgentConnectionRecovery(
             status: { service.status },
+            refreshApplication: { try await ApplicationRegistration.refresh() },
             register: { try service.register() },
             unregister: { try await service.unregister() },
             verifyConnection: { _ = try await self.fetchSnapshot() },

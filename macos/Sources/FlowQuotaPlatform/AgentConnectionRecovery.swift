@@ -5,6 +5,7 @@ import ServiceManagement
 /// Polling and failed business requests must never restart it or discard sampling baselines.
 @MainActor struct AgentConnectionRecovery {
     let status: () -> SMAppService.Status
+    let refreshApplication: () async throws -> Void
     let register: () throws -> Void
     let unregister: () async throws -> Void
     let verifyConnection: () async throws -> Void
@@ -17,7 +18,7 @@ import ServiceManagement
             try await replaceRegistration()
             try await verifyConnection()
         } else {
-            try ensureRegistered()
+            try await ensureRegistered()
             do {
                 try await verifyConnection()
             } catch {
@@ -40,9 +41,16 @@ import ServiceManagement
         if shouldStart { try await startMonitoring() }
     }
 
-    private func ensureRegistered() throws {
+    private func ensureRegistered() async throws {
         guard status() != .requiresApproval else { throw approvalRequired }
-        if status() != .enabled { try register() }
+        if status() != .enabled {
+            // Wait for fresh app metadata before ServiceManagement derives the
+            // helper path and launch requirements from the containing bundle.
+            try await refreshApplication()
+            // Consent can change while LaunchServices is refreshing off-actor.
+            guard status() != .requiresApproval else { throw approvalRequired }
+            if status() != .enabled { try register() }
+        }
         guard status() == .enabled else { throw approvalRequired }
     }
 
@@ -54,7 +62,7 @@ import ServiceManagement
         // SMAppService's async completion waits for process termination. Complete
         // the register pair even if cancellation arrives while unregistering.
         if status() != .notRegistered { try await unregister() }
-        try ensureRegistered()
+        try await ensureRegistered()
         try Task.checkCancellation()
     }
 

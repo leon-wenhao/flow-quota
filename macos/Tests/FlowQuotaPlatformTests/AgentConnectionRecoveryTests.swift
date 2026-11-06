@@ -9,14 +9,14 @@ struct AgentConnectionRecoveryTests {
         let service = Service()
         service.probeErrors = [.connectionFailed("old cdhash rejected")]
         try await service.recovery.connect(startMonitoring: true)
-        #expect(service.events == ["probe", "unregister", "register", "probe", "start"])
+        #expect(service.events == ["probe", "unregister", "refresh-app", "register", "probe", "start"])
     }
 
     @Test func timedOutOldHelperIsAlsoRecovered() async throws {
         let service = Service()
         service.probeErrors = [.timeout]
         try await service.recovery.connect(startMonitoring: true)
-        #expect(service.events == ["probe", "unregister", "register", "probe", "start"])
+        #expect(service.events == ["probe", "unregister", "refresh-app", "register", "probe", "start"])
     }
 
     @Test func healthyHelperKeepsItsProcessAndBaselines() async throws {
@@ -28,7 +28,7 @@ struct AgentConnectionRecoveryTests {
     @Test func freshInstallationRegistersAndVerifiesBeforeStarting() async throws {
         let service = Service(status: .notRegistered)
         try await service.recovery.connect(startMonitoring: true)
-        #expect(service.events == ["register", "probe", "start"])
+        #expect(service.events == ["refresh-app", "register", "probe", "start"])
     }
 
     @Test func approvalIsNeverBypassedByReregistration() async throws {
@@ -45,7 +45,7 @@ struct AgentConnectionRecoveryTests {
         await #expect(throws: PlatformError.self) {
             try await service.recovery.connect(startMonitoring: true)
         }
-        #expect(service.events == ["register"])
+        #expect(service.events == ["refresh-app", "register"])
     }
 
     @Test func revokedApprovalDuringFailedProbeDoesNotRestart() async throws {
@@ -68,7 +68,7 @@ struct AgentConnectionRecoveryTests {
             #expect(error.localizedDescription.contains("仍无法连接"))
             #expect(error.localizedDescription.contains("new cdhash rejected"))
         }
-        #expect(service.events == ["probe", "unregister", "register", "probe"])
+        #expect(service.events == ["probe", "unregister", "refresh-app", "register", "probe"])
     }
 
     @Test func businessAndProtocolErrorsNeverReplaceService() async throws {
@@ -122,7 +122,46 @@ struct AgentConnectionRecoveryTests {
         await #expect(throws: PlatformError.self) {
             try await service.recovery.connect(startMonitoring: true)
         }
-        #expect(service.events == ["probe", "unregister", "register"])
+        #expect(service.events == ["probe", "unregister", "refresh-app", "register"])
+    }
+
+    @Test func refreshFailureDoesNotRegisterProbeOrStart() async throws {
+        let service = Service(status: .notRegistered)
+        service.refreshError = PlatformError.unavailable("LaunchServices failed")
+        await #expect(throws: PlatformError.self) {
+            try await service.recovery.connect(startMonitoring: true)
+        }
+        #expect(service.events == ["refresh-app"])
+    }
+
+    @Test func refreshFailureAfterUnregisterRemainsVisible() async throws {
+        let service = Service()
+        service.probeErrors = [.timeout]
+        service.refreshError = PlatformError.unavailable("LaunchServices failed")
+        await #expect(throws: PlatformError.self) {
+            try await service.recovery.connect(startMonitoring: false)
+        }
+        #expect(service.events == ["probe", "unregister", "refresh-app"])
+        #expect(service.status == .notRegistered)
+    }
+
+    @Test func approvalRevokedDuringRefreshDoesNotRegister() async throws {
+        let service = Service(status: .notRegistered)
+        service.onRefresh = { service.status = .requiresApproval }
+        await #expect(throws: PlatformError.self) {
+            try await service.recovery.connect(startMonitoring: true)
+        }
+        #expect(service.events == ["refresh-app"])
+    }
+
+    @Test func successiveUpdatesRefreshEachNewRegistration() async throws {
+        let service = Service(status: .notRegistered)
+        for _ in 0..<3 {
+            service.events.removeAll()
+            try await service.recovery.connect(startMonitoring: false)
+            #expect(service.events == ["refresh-app", "register", "probe"])
+            service.status = .notRegistered
+        }
     }
 
     @Test func cancelledProbeDoesNotRepair() async throws {
@@ -140,14 +179,14 @@ struct AgentConnectionRecoveryTests {
         service.onUnregister = { withUnsafeCurrentTask { $0?.cancel() } }
         let connecting = Task { try await service.recovery.connect(startMonitoring: true) }
         await #expect(throws: CancellationError.self) { try await connecting.value }
-        #expect(service.events == ["probe", "unregister", "register"])
+        #expect(service.events == ["probe", "unregister", "refresh-app", "register"])
         #expect(service.status == .enabled)
     }
 
     @Test func explicitPausedRepairVerifiesWithoutStarting() async throws {
         let service = Service()
         try await service.recovery.connect(startMonitoring: false, replacingRegistration: true)
-        #expect(service.events == ["unregister", "register", "probe"])
+        #expect(service.events == ["unregister", "refresh-app", "register", "probe"])
     }
 
     @Test func repeatedConnectionAfterRecoveryDoesNotReplaceAgain() async throws {
@@ -167,6 +206,8 @@ private final class Service {
     var events: [String] = []
     var probeErrors: [PlatformError] = []
     var probeCancellation = false
+    var refreshError: (any Error)?
+    var onRefresh: (() -> Void)?
     var registerError: (any Error)?
     var unregisterError: (any Error)?
     var startError: (any Error)?
@@ -177,7 +218,11 @@ private final class Service {
     init(status: SMAppService.Status = .enabled) { self.status = status }
 
     var recovery: AgentConnectionRecovery {
-        AgentConnectionRecovery(status: { self.status }, register: {
+        AgentConnectionRecovery(status: { self.status }, refreshApplication: {
+            self.events.append("refresh-app")
+            if let error = self.refreshError { throw error }
+            self.onRefresh?()
+        }, register: {
             self.events.append("register")
             if let error = self.registerError { throw error }
             self.status = self.statusAfterRegister
