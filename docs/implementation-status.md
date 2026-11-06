@@ -26,7 +26,7 @@
 
 ## 用户选定 C「流量刻度」图标（2026-11-05）
 
-第二轮三方案中用户明确选择 C。已将深青底板、薄荷绿圆角用量柱和分离阈值圆点接入 `BrandIdentity.swift`，应用 ICNS、窗口标题标记和菜单栏复用相同矢量源。SVG 导出与 SwiftUI 同用几何和配色；正式 1024 PNG 与选定的 `concepts-v2/C-meter.png` SHA-256 完全一致。原 A／B／C 提案保留供比较。
+第二轮三方案中用户明确选择 C。已将深青底板、薄荷绿圆角用量柱和分离阈值圆点接入 `BrandIdentity.swift`，应用 ICNS、窗口标题标记和菜单栏复用相同矢量源。SVG 导出与 SwiftUI 同用几何和配色；当时正式 1024 PNG 与选定的 C 提案 SHA-256 完全一致。2026-11-06 清理了候选稿及其独立生成器，正式几何和资源继续保留。
 
 arm64／x86_64 构建及严格签名检查通过，日志 `.artifacts/brand-c-build-arm64.log`、`.artifacts/brand-c-build-x64.log`。此轮为纯图标变更，使用编译、生成资源比对、实际系统图标和菜单栏浅／深色模板渲染核验；没有机械新增测试或重复执行无关功能测试。沙箱内 iconutil 报 Invalid Iconset、NSWorkspace 图标读取为空白，沙箱外调用相同官方工具和读取接口后均正常，未更换图标工具或绕过签名。
 
@@ -447,3 +447,15 @@ arm64编译、严格签名、diff空白检查及安装后的真实XPC暂停自�
 本次发布包含上述后台服务连接恢复修复。按用户补充要求，GitHub tag 改用 `v0.1.4`，不再附带 build 后缀；发布标题、安装包文件名和应用内版本继续仅显示三段版本。内部构建号 25 仍保存在 Info.plist 与更新清单中，供客户端比较。每个版本只对应一个不可覆盖的 tag 和安装包；重新发布必须同时递增版本号与内部构建号。
 
 发布器与构建输入生成器使用一致的纯版本下载地址；latest 防回退按三段版本比较，同版本仍由不可变 tag 与完整附件大小／摘要校验保护。历史 tag 的一次性整理复用已验证的 DMG，不重新构建旧源码；必须先核对替代 Release 的源码指向、安装包摘要及新下载地址，再移除旧命名的 Release 和 tag。最终发布结果记录在 `public-distribution-verification.md`。
+
+## 2026-11-06：仓库无用文件与引用清理
+
+检查范围为清理前的 308 个 Git 跟踪文件及 3 个新增 Swift／测试文件，覆盖 SwiftPM 自动发现、应用／服务入口、配置打包、脚本调用和 Python 导入、测试资源、品牌生成与 Markdown 本地链接。已存在的图表文案、预警表格和错误可见性修改保留。
+
+- 删除 16 个文件：`assets/brand/concepts-v2/` 的 13 个候选稿／对照图／独立生成器文件，旧 `UsageChartData.swift` 及 `UsageChartDataTests.swift`、`UsageTimelineDataTests.swift`。当前图标来自正式 `BrandIdentity.swift` 与品牌生成入口；当前图表来自应用分钟模型。清理空的旧 `distribution/public/` 目录。
+- 清除被替代的接口图表聚合函数和界面未读取的辅助成员；仍被双饼图使用的值类型归入 `UsagePieData.swift`。删除清单见本地忽略目录 `.artifacts/unused-file-audit/deleted-files.txt`。
+- 保留所有现有配置与脚本：版本／Info／LaunchAgent／安装提示参与打包；`.vscode/launch.json` 是显式调试入口；品牌、DMG、签名审计、版本设置、发布／恢复、暂停修复、采样诊断和测试脚本均有开发或验证用途。此次没有执行安装、采样诊断、远端发布或仓库操作。
+- 保留共享额度向量、内存额度算术模型及相关回归，它们实现跨平台领域契约，不能仅因提醒版未接入过滤器就视为废弃。持久化 `BudgetLedger.swift` 的 `balance` 仍由采样入账调用，旧租约参与溢出校验并由当前日留存逻辑清理；相关 schema 与迁移保持原样。
+- 唯一逐字节重复的跟踪资源是共享额度 JSON 与 SwiftPM Fixtures 副本：这是测试资源打包所需的受控镜像，由 `sync-fixtures.py --check` 及字节一致性测试验证，继续保留。其余正式品牌资源供打包、文档或同源导出使用。没有新增依赖或系统 API，删除依据为现有构建和引用关系。
+
+验证：全量 Swift 回归 399 项通过，发布工具 Python 单测 31 项通过；Shell／Python／JSON／plist 语法检查通过，Markdown 本地链接没有失效引用。arm64 Release 构建、Agent／App 严格 ad-hoc 签名和发布静态审计通过。最终浮层测试补齐线程注解后针对性重跑通过；`git diff --check` 通过。日志位于 `.artifacts/unused-file-audit/` 的 `swift-tests.log`、`release-script-tests.log`、`build-arm64.log` 和 `tooltip-test.log`。没有生成下载、上传或热点实验流量；本次未重做 Intel／macOS 14 真机与安装验收。

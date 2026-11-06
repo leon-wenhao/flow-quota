@@ -57,14 +57,6 @@ final class AppState {
         connected && snapshotIsCurrent ? snapshot?.network : nil
     }
     var showsHotspotControl: Bool { currentNetwork != .expensive }
-    var networkTitle: String {
-        switch currentNetwork {
-        case .expensive: return "当前连接：高成本网络"
-        case .hotspot: return "当前连接：手动标记为热点"
-        case .ordinary: return "当前连接：普通网络"
-        case .unknown, nil: return "当前连接：未知"
-        }
-    }
     var networkDetail: String {
         switch currentNetwork {
         case .expensive:

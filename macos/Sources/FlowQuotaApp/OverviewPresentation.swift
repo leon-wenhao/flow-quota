@@ -22,11 +22,10 @@ extension AppState {
         return interfaceUsageIsPreserved ? "已保留今日累计 · 当前接口未计量" : "上传＋下载 · 仅含已观测流量"
     }
 
-    /// Agent's existing diagnostic contract has two explicit error prefixes. Show the
-    /// entire diagnostic on failure, including 128-source/256-event capacity errors.
+    /// Shared by the overview and history: routine state belongs in diagnostics,
+    /// while configuration, sampling, storage and capacity failures stay visible.
     var trafficAlertWarning: String? {
-        guard connected, snapshotIsCurrent, let message = snapshot?.trafficAlertMessage,
-              message.contains("接口预警未完成：") || message.contains("应用预警覆盖不完整：") else { return nil }
-        return message
+        guard connected, snapshotIsCurrent, let message = snapshot?.trafficAlertMessage else { return nil }
+        return TrafficAlertDiagnostics.warning(in: message)
     }
 }

@@ -91,17 +91,22 @@ struct UsageTimelineView: View {
     private func chart(_ data: ApplicationTimelinePresentation) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(UsageFormatter.bytes(data.summary.totalBytes)).font(.title2.bold()).monospacedDigit()
-                Text("来源归因").font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(UsageFormatter.bytes(data.summary.totalBytes)).font(.title2.bold()).monospacedDigit()
+                    Text("上传＋下载合计").font(.caption).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("所选时段应用上传与下载合计")
+                .accessibilityValue(UsageFormatter.bytes(data.summary.totalBytes))
                 Spacer()
                 VStack(alignment: .trailing, spacing: 3) {
-                    Text("\(time(data.summary.interval.start))–\(time(data.summary.interval.end)) · \(data.summary.bucketMinutes) 分钟")
-                    Text("左上传 · 右下载")
+                    Text("\(time(data.summary.interval.start))–\(time(data.summary.interval.end)) · 每组 \(data.summary.bucketMinutes) 分钟")
+                    Text("每组左侧上传、右侧下载")
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 Image(systemName: "info.circle")
-                    .help("每个时段两柱按应用堆叠，悬停列出该时段各应用的对应方向用量。仅含升级后已观测的当天应用归因，可能重叠或不完整；空白未知，圆点为观测零。不等同接口总量，Clash 来源见应用列表。按所选范围展示归因选择前十来源，其余合并为其他应用。与应用列表一致隐藏代理内核；Clash 来源与普通应用可能重叠，合计不是接口总量，也不能视为直连量。" + (data.clashNotice ?? ""))
-                    .accessibilityLabel("应用分时计量与覆盖说明")
+                    .help("大号数值是所选时段内上传与下载的应用用量合计。每组有两根柱子，左侧上传、右侧下载，不同颜色表示不同应用；悬停查看各应用用量。仅含升级后已观测的当天应用归因，可能重叠或不完整；空白未知，圆点为观测零。不等同接口总量，Clash 来源见应用列表。按所选范围展示归因选择前十来源，其余合并为其他应用。与应用列表一致隐藏代理内核；Clash 来源与普通应用可能重叠，合计不是接口总量，也不能视为直连量。" + (data.clashNotice ?? ""))
+                    .accessibilityLabel("应用流量统计说明")
             }
             if data.summary.totalBytes != nil {
                 UsageTimelineChart(data: data)

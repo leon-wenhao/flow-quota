@@ -8,7 +8,6 @@ import UserNotifications
 final class NotificationPermission {
     private(set) var status: UNAuthorizationStatus?
     private(set) var alerts: UNNotificationSetting?
-    private(set) var sounds: UNNotificationSetting?
     private(set) var reading = false
     private(set) var requesting = false
     private(set) var errorMessage: String?
@@ -47,7 +46,6 @@ final class NotificationPermission {
         guard !Task.isCancelled else { return }
         status = settings.authorizationStatus
         alerts = settings.alertSetting
-        sounds = settings.soundSetting
     }
 
     /// Called exclusively by an explicit button; reading settings never requests permission.
@@ -63,16 +61,6 @@ final class NotificationPermission {
                 _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
             } catch { self.errorMessage = "无法请求通知授权：\(error.localizedDescription)" }
             await self.refresh()
-        }
-    }
-
-    static func settingDescription(_ setting: UNNotificationSetting?) -> String {
-        switch setting {
-        case .enabled: return "已开启"
-        case .disabled: return "已关闭"
-        case .notSupported: return "系统不支持"
-        case nil: return "未知"
-        @unknown default: return "未知"
         }
     }
 }

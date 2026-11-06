@@ -37,7 +37,6 @@ private func listedApp(_ key: String, bytes: Int64) throws -> ApplicationSnapsho
     let state = AppState(client: client, scheduler: FakeReminderScheduler())
     await state.refresh()
     #expect(state.networkName == "高成本网络")
-    #expect(!state.networkTitle.contains("已自动计量"))
     #expect(state.interfaceSummary.contains("保留"))
     #expect(MonitoringPresentation(state: state).title == "应用采集已暂停")
     #expect(!MonitoringPresentation(state: state).collecting)

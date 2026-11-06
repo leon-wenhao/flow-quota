@@ -16,14 +16,6 @@ enum AppAppearancePreference: String, CaseIterable, Identifiable {
         }
     }
 
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: nil
-        case .light: .light
-        case .dark: .dark
-        }
-    }
-
     static func selection(in defaults: UserDefaults = .standard) -> Self {
         defaults.string(forKey: key).flatMap(Self.init(rawValue:)) ?? .system
     }

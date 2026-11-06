@@ -4,7 +4,6 @@ import SwiftUI
 /// Colors use AppKit semantic colors so light and dark appearance stay native.
 enum FlowQuotaTheme {
     static let accent = Color(nsColor: .controlAccentColor)
-    static let canvas = Color(nsColor: .windowBackgroundColor)
     static let cardFill = Color(nsColor: .controlBackgroundColor)
     static let inputFill = Color(nsColor: .textBackgroundColor)
     static let border = Color(nsColor: .separatorColor).opacity(0.55)
@@ -197,9 +196,5 @@ extension View {
         font(.system(size: 23, weight: .semibold, design: .rounded))
             .foregroundStyle(.primary)
             .padding(.bottom, 2)
-    }
-
-    func flowQuotaSecondaryText() -> some View {
-        font(.caption).foregroundStyle(FlowQuotaTheme.muted)
     }
 }

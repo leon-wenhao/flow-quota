@@ -1,5 +1,11 @@
 import Foundation
 
+struct UsageChartValue: Identifiable, Equatable {
+    let id: String
+    let label: String
+    let bytes: Int64
+}
+
 struct UsagePieSlice: Identifiable, Equatable {
     let id: String
     let label: String

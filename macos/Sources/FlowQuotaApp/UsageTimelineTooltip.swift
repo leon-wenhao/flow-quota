@@ -6,7 +6,6 @@ struct UsageTimelineTooltip: View {
     let sourceIDs: [String]
 
     static let width: CGFloat = 272
-    static let maximumHeight: CGFloat = 288
     var height: CGFloat { selection.totalBytes == nil ? 72 : 84 + CGFloat(selection.applications.count) * 18 }
 
     var body: some View {

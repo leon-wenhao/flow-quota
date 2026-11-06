@@ -60,7 +60,7 @@ func tooltipContentsFitReservedOverlayWithoutChangingChartHeight(observed: Bool)
         .fixedSize(horizontal: false, vertical: true))
     host.layoutSubtreeIfNeeded()
     #expect(host.fittingSize.height <= content.height)
-    #expect(content.height <= UsageTimelineTooltip.maximumHeight)
+    #expect(content.height <= 288)
     let bounds = CGRect(x: 0, y: 0, width: 520, height: 300)
     let size = CGSize(width: UsageTimelineTooltip.width, height: content.height)
     for pointer in [CGPoint(x: 5, y: 5), CGPoint(x: 510, y: 295)] {
@@ -69,7 +69,7 @@ func tooltipContentsFitReservedOverlayWithoutChangingChartHeight(observed: Bool)
     }
 }
 
-@Test func longTooltipUsesVisibleViewportWhenChartIsPartlyScrolled() {
+@MainActor @Test func longTooltipUsesVisibleViewportWhenChartIsPartlyScrolled() {
     let viewport = CGRect(x: 180, y: 80, width: 570, height: 400)
     let size = CGSize(width: UsageTimelineTooltip.width, height: 282)
     for chartY in [CGFloat(230), CGFloat(20), CGFloat(400)] {
