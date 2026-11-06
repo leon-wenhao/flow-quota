@@ -121,3 +121,19 @@
 - 当前网络通过已有系统代理匿名访问 `releases/latest/download/update-manifest.json` 与两个架构 appcast，三份内容均与本地逐字节一致；同时通过 Release Assets API 核验。仅读取小型更新元数据，没有重新下载线上 DMG 做流量实验。
 - 本地 bundle：`.artifacts/releases/FlowQuota-0.1.7-build-28/`；打包发布日志 `.artifacts/release-0.1.7-publish.log`，线上与成品核验为 `.artifacts/release-0.1.7-online-verification.json`、`.artifacts/release-0.1.7-dmg-verification.json`，均不进入 Git 历史。
 - 当前仍为 ad-hoc、未 Developer ID 签名及未公证；未验收 macOS 14／Intel 真机和真实跨版本 Sparkle 替换。没有操作本机服务或生产数据库，没有生成热点实验下载／上传。完整总量指有效观测区间，现有输入不能证明每个接口字节唯一对应某个原始应用，未知与重复仍必须说明。
+
+
+## 0.1.8 Clash 完整来源拆分发布（2026-11-06）
+
+- 对外版本为 `Flow Quota 0.1.8`，内部构建号29；源码提交 `1fbe16be97c10409f78db273fd95f77796a94f37` 已推送main，正式tag `v0.1.8` 精确指向此提交。
+- 本版将Clash内核完整拆成已识别来源与“其他未识别（Clash）”，列表、菜单栏、图表及新预警共用来源；父项不重复加入。schema v9保存当天类别隔离的来源分钟汇总，重启保留；缺失旧明细不补填。任一方向冲突的分钟全部父项保留为未识别，不缩放或裁剪。物理接口总量保持独立，未宣称逐字节还原原始应用。
+- 发布前431项Swift全量回归、34项Python发布工具测试、签名密钥公钥匹配及变更凭据、产物检查通过；两个架构的Release编译、App与Agent严格ad-hoc签名、发布静态审计、DMG与appcast Ed25519独立公钥验证通过。
+- 正式发布于 `2026-11-06T13:11:13Z`（北京时间21:11:13），Release ID `436514234`，为非草稿、非预发布的latest。八个白名单附件的名称、uploaded状态、大小及GitHub SHA-256摘要全部与本地一致，完整核验后才激活latest。
+- 发布页：<https://github.com/leon-wenhao/flow-quota/releases/tag/v0.1.8>。
+- arm64 DMG：3,561,472 bytes，SHA-256 `017a0341be117d1e0c61480fef465922b4270a702f7582a54d4c7652ee7585e0`。
+- x86_64 DMG：3,687,424 bytes，SHA-256 `cc2c6a1fbbd5d9ec137c8c0b3ce7708c7b43b7df1ff632da08962c127dfd4786`。
+- 通过Release Assets API及已有系统代理匿名访问latest下载入口，更新清单和两个架构appcast均与本地逐字节一致；仅获取小型更新元数据，未重新下载线上DMG。
+- 两个成品DMG均只读挂载，复核版本、构建号、架构、最低系统版本、App与服务严格签名、主程序和Agent与构建产物逐字节一致、Applications链接、安装说明、背景及Finder元数据后推出，没有启动包内程序。
+- 草稿创建后第一次列表读取未返回新草稿，发布流程明确停止；重新读取确认草稿后，使用原bundle按中断恢复流程发布，未重新构建、改写tag或覆盖附件。
+- 本地bundle：`.artifacts/releases/FlowQuota-0.1.8-build-29/`；发布及恢复日志为 `.artifacts/release-0.1.8-publish.log`、`.artifacts/release-0.1.8-publish-resume.log`；核验记录为 `.artifacts/release-0.1.8-online-verification.json`、`.artifacts/release-0.1.8-dmg-verification.json`，均不进入Git历史。
+- 当前仍为ad-hoc、未Developer ID签名及未公证；未验收macOS14与Intel真机及真实跨版本Sparkle替换。未操作本机服务或生产数据库，未生成热点实验下载、上传；真实VPN及TUN组合、运营商计费差异未实测。
