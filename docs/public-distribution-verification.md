@@ -81,3 +81,17 @@
 - 0.1.3 DMG：arm64 2,461,696 bytes，SHA-256 `91f411bcedfed383da9aa73a75a97661b2d9945c223125e25ca4109360543a77`；x86_64 2,575,360 bytes，SHA-256 `1e2f920e75022b74796e919b14cf2e3986a0ba3dc2f935395581097f3b27ac6e`。
 - 删除旧仓库的 CLI API 请求返回 403，明确缺少 OAuth `delete_repo` scope；没有扩大令牌权限。已有 GitHub 网页会话可管理旧仓库，已准备到 `leon-wenhao/flow-quota-releases` 最终删除表单，尚未提交。电脑操作工具要求在删除云端数据的最终操作前当场确认，等待用户确认后完成并补记结果；不能声称旧仓库已删除。
 - 证据保存在本机 `.artifacts/single-repository/`；发布包位于 `.artifacts/releases/FlowQuota-0.1.3-build-24/`，不进入 Git 历史。
+
+
+## 0.1.4 发布与纯版本 tag（2026-11-06）
+
+- 源码提交 `e1b08725ea70a90bc9133622464f32c1d397e8bd` 已推送到 main；本次 Git HTTPS 使用 HTTP/1.1 推送成功。正式 tag `v0.1.4` 精确指向该构建源码。
+- 本次包含覆盖安装后的后台服务连接恢复修复。发布脚本、构建输入、下载链接及文档统一使用纯版本 tag；内部构建号 25 保存在应用及更新元数据中。每次重新发布必须递增版本号和内部构建号。
+- Swift Testing 362 项、XCTest 37 项、Python 发布回归 31 项通过；Shell 语法及 diff 检查通过。Swift 测试使用仓库脚本选择完整 Xcode；直接使用系统 Command Line Tools 曾因缺少 XCTest 失败，未将该失败当作通过。
+- Apple silicon 与 Intel release 构建通过；两份成品 DMG 重新只读挂载，版本、架构、最低系统版本、严格签名、Applications 链接、安装说明、Finder 元数据及新更新入口检查通过。
+- 发布页：<https://github.com/leon-wenhao/flow-quota/releases/tag/v0.1.4>；Release ID `436168714`，发布时间 `2026-11-06T06:17:56Z`，draft=false，已核对为 latest。六个附件的 uploaded 状态、大小和 SHA-256 均与本地一致。匿名访问 latest/download/update-manifest.json 得到的字节与本地清单完全一致；仅下载小型 JSON，未重新下载安装包做网络验收。
+- arm64 DMG：2,466,304 bytes，SHA-256 `db4c3dc74f96d91a60d92d7066c71a17c1434b92080ee8a2833913b67be9b554`。Intel DMG：2,580,992 bytes，SHA-256 `6a376d2482ddb36a7edfcab7b5022345371507afdf5416ce87b753abd731e56c`。
+- 历史发布整理为 `v0.1.2`、`v0.1.3`：复用原始 DMG，核对旧附件大小／摘要、源码 SHA 与新完整附件，更新清单下载 URL 后再移除旧命名 Release 和 tag。源码仍分别指向 `9fecaecfa9456493a740f193f9a33163e0e35060`、`bfe41dd4f0f6aeb0526a169d5da5da0836d35a0e`；未重构建或覆盖旧版二进制，0.1.2 的旧更新地址警示保留在发布说明中。在线仅有 `v0.1.2`、`v0.1.3`、`v0.1.4` 三个 tag 与三个 Release。
+- GitHub 创建草稿后列表曾短暂未返回；沿用同一 bundle 恢复发布成功，未重复建版或覆盖正式附件。
+- 当前仍为 ad-hoc、未公证；macOS 14、Intel 真机运行以及覆盖安装后旧进程的真实系统恢复尚未验收。未替换本机安装、未启停采样服务、未操作生产数据库、未进行热点流量实验。旧独立分发仓库的删除状态仍以上节记录为准；本次仅整理当前项目的历史 Release/tag。
+- 本地发布包位于 `.artifacts/releases/FlowQuota-0.1.4-build-25/`；证据位于 `.artifacts/single-repository/0.1.4-*` 和 `version-tag-migration.json`，不进入 Git 历史。

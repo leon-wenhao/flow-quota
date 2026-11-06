@@ -6,10 +6,12 @@
 
 先完成并审查源码，再设置版本。对外标题只显示三段版本号，tag 例如 `v0.1.4`，不带 build 后缀；每次发布版本号和内部构建号都必须递增。
 
+例如 0.1.4 已发布后，下一次发布可使用：
+
 ```bash
-./scripts/set-version.sh 0.1.4 25
+./scripts/set-version.sh 0.1.5 26
 git add <本次需要发布的文件>
-git commit -m "release: prepare 0.1.4"
+git commit -m "release: prepare 0.1.5"
 git push origin main
 ./scripts/release-macos.sh --publish --activate-manifest
 ```
