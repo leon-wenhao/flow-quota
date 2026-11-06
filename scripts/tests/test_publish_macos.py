@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import publish_macos as publisher
 
 REPO = publisher.PUBLIC_REPO
-TAG = "v1.2.3-build.7"
+TAG = "v1.2.3"
 COMMIT = "a" * 40
 MANIFEST = {"version": "1.2.3", "build": 7}
 
@@ -153,12 +153,12 @@ class PublisherTests(unittest.TestCase):
 
     def test_latest_activation_rejects_rollback_and_accepts_first_same_or_older_release(self):
         self.release.return_value = {"id": 42, "draft": False}
-        for latest in (None, {"tag_name": TAG}, {"tag_name": "v1.2.2-build.99"}):
+        for latest in (None, {"tag_name": TAG}, {"tag_name": "v1.2.2"}):
             self.run.reset_mock()
             self.api.side_effect = [self.remote_assets(), latest]
             self.real_activate(self.bundle, REPO, TAG)
             self.assertEqual(self.commands(), [("gh", "release", "edit", TAG, "--repo", REPO, "--latest")])
-        for tag in ("v1.2.4-build.1", "v1.2.3-build.8", "unsupported"):
+        for tag in ("v1.2.4", "v1.2.3-build.8", "unsupported"):
             self.run.reset_mock()
             self.api.side_effect = [self.remote_assets(), {"tag_name": tag}]
             with self.assertRaises(ValueError):

@@ -191,3 +191,19 @@ measurement validation.
 - 本机 `/System/Library/CoreServices/Finder.app` 公开 scripting dictionary（使用 Xcode 27.2 的 `sdef` 导出）：`container window`、`icon view options`、`arrangement`、`background picture`、`position`、`bounds`、`toolbar visible`、`statusbar visible`，以及 `update … without registering applications`。只使用公开脚本接口，不修改系统窗口或私有 API。
 - 本机 macOS 27.2 的 `diskutil(8)`、`diskutil image create from --help`：从文件夹创建命名卷；RAW 可写、UDZO 只读压缩，已有镜像可作为转换源；`image attach --mountPoint` 指定临时挂载目录。macOS 14–26 使用原有 `hdiutil create/attach/convert` 路径，尚需对应系统验证。
 - Xcode 27.2 / AppKit SDK 的 `NSBitmapImageRep`、`NSImage`、`NSGraphicsContext`：背景通过系统文字与路径绘制，TIFF 同时包含 1×／2× bitmap 并指定逻辑尺寸。安装提示继续遵循上文 Apple 安全打开 App 的正常单应用入口。
+
+
+## SwiftUI 控件点击区域（2026-11-06）
+
+- Apple `View.contentShape(_:eoFill:)`：https://developer.apple.com/documentation/swiftui/view/contentshape(_:eofill:)
+  已读取官方 DocC JSON：该修饰器指定视图用于 hit testing 的形状。共享分段按钮在宽高扩展后设置与可见选项一致的圆角点击形状，使未选中项的透明区域也能触发原生 Button；不添加手势替代按钮，不改变禁用与无障碍语义。
+- 项目 Swift tools 6.0 / Swift 6、最低 macOS 14；本机 Xcode Swift 6.4.2、macOS SDK 27.2。
+- `ControlHitAreaTests` 在原生 `NSHostingView` / `NSWindow` 中派发本地鼠标按下与抬起事件：修复前分段空白处点击可复现失败，修复后验证两项／三项分段、各共享按钮样式、整行展开入口及禁用状态。测试不连接真实采样服务，不产生验收流量；尚未在 macOS 14 真机复验。
+
+
+## 覆盖升级后的后台服务恢复（2026-11-06）
+
+- Apple [SMAppService](https://developer.apple.com/documentation/servicemanagement/smappservice)；已核对本机 Xcode 27.2 / macOS SDK 27.2 的 `ServiceManagement.framework/Headers/SMAppService.h`。该类自 macOS 13 可用，满足项目最低 macOS 14；头文件明确：LaunchAgent 的 plist／可执行文件更新后需重新注册，可执行文件改变时建议先注销。`enabled` 只表示已注册且有资格运行，不证明进程来自当前安装包或 XPC 可连接。
+- SDK 同一头文件的 `unregisterWithCompletionHandler:`：完成回调在旧进程终止后执行，此后才可安全重注册。本次沿用 Swift 的 `try await service.unregister()`，等待后调用 `register()`，不使用不等待进程退出的同步注销替代。
+- 沿用 Apple `NSXPCConnection` 的 `setCodeSigningRequirement`、错误代理与 interruption／invalidation 回调；仅将传输失败与 Agent 返回的业务错误分型，双向 designated requirement 校验不变。恢复后仍通过原 XPC 路径读取快照和等待开始采集 ACK，不能以注册状态替代连接成功。
+- 验证：Swift 6.4.2 编译及模拟服务生命周期回归；真实旧进程覆盖安装后的 SMAppService 恢复尚未实机复验，不将模拟生命周期测试当作系统注册验收。未启停本机实际采样服务、未生成验收网络流量。

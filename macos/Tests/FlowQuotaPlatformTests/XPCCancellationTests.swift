@@ -38,3 +38,28 @@ import Testing
     case .failure(let error): #expect(error is CancellationError || error is PlatformError)
     }
 }
+
+@Test func transportAndAgentErrorsRemainDistinct() async {
+    for transport in [false, true] {
+        let connection = NSXPCConnection(serviceName: "local.flowquota.test.unused")
+        let completion = XPCCompletion(connection: connection)
+        if transport { completion.failConnection("identity rejected") }
+        else { completion.fail("database unavailable") }
+        do {
+            let _: Data = try await withCheckedThrowingContinuation { continuation in
+                #expect(!completion.install(continuation))
+            }
+            Issue.record("An error must fail the awaiting request")
+        } catch {
+            guard let error = error as? PlatformError else {
+                Issue.record("Unexpected error: \(error)")
+                continue
+            }
+            switch error {
+            case .connectionFailed: #expect(transport)
+            case .unavailable: #expect(!transport)
+            default: Issue.record("Unexpected failure kind: \(error)")
+            }
+        }
+    }
+}

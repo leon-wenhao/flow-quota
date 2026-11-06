@@ -48,7 +48,7 @@ def check_repositories(repo):
 
 def ensure_public_tag(repo, tag, source_commit):
     """Create a lightweight tag at the exact bundle source, or verify its existing target."""
-    if repo != PUBLIC_REPO or not re.fullmatch(r"v\d+\.\d+\.\d+-build\.[1-9]\d*", tag):
+    if repo != PUBLIC_REPO or not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
         raise ValueError("Invalid release repository/tag")
     if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
         raise ValueError("Invalid source commit")
@@ -64,7 +64,7 @@ def ensure_public_tag(repo, tag, source_commit):
         if target["type"] == "tag":
             target = api("repos/{}/git/tags/{}".format(repo, target["sha"]))["object"]
         if target["type"] != "commit" or target["sha"] != source_commit:
-            raise ValueError("Existing tag points to different source; use a new build")
+            raise ValueError("Existing tag points to different source; use a new version")
     else:
         api("repos/" + repo + "/git/refs", "POST",
             {"ref": "refs/tags/" + tag, "sha": source_commit})

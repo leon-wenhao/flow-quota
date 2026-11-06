@@ -7,7 +7,7 @@
 - `leon-wenhao/flow-quota` 改为公开，统一管理源码、文档、Issues、tag 和 Releases，使用 MIT 许可证。
 - DMG 只作为 Release 附件；`.artifacts/` 继续忽略，不把二进制提交进 Git。
 - 现阶段没有旧版使用者，无需旧更新入口、重定向或过渡期。新入口验收后删除 `leon-wenhao/flow-quota-releases`。
-- 主动检查更新的语义不变；应用读取本仓库 latest Release 的 `update-manifest.json` 附件。版本仍采用三段版本号＋内部递增 build，唯一 tag 为 `v版本-build.构建号`。
+- 主动检查更新的语义不变；应用读取本仓库 latest Release 的 `update-manifest.json` 附件。对外使用三段版本号，唯一 tag 为 `v版本`（如 `v0.1.4`），不带 build 后缀；内部递增构建号仅保存在应用元数据和更新清单中。
 
 ## 执行顺序
 
@@ -21,7 +21,7 @@
 ## 分支与发布维护
 
 - `main` 保存可发布源码；日常修改使用 `codex/功能名` 分支并通过审查合入。
-- tag 指向实际构建源码，不复用、不改写已发布 tag；重构建使用新 build。
+- tag 指向实际构建源码，不复用、不改写已发布 tag；重新发布必须递增版本号和内部构建号。
 - 本地根 `update-manifest.json` 是构建输入，latest Release 附件才是已验证的在线清单，避免先改版本号就让客户端发现尚未上传的包。
 - 不新增 CI、额外服务器或自动升级任务；用户点击检查更新后下载并打开 DMG，仍由用户拖入 Applications 完成安装。
 

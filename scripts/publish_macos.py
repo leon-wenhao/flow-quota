@@ -54,11 +54,13 @@ def activate_manifest(bundle, repo, tag):
     verify_assets(api("repos/{}/releases/{}/assets".format(repo, release["id"])), assets, True)
     latest = api("repos/" + repo + "/releases/latest", allow_missing=True)
     if latest is not None:
-        match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)-build\.(\d+)", latest["tag_name"])
+        match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", latest["tag_name"])
         if not match:
             raise ValueError("Latest release has an unsupported tag")
+        # A version has exactly one immutable tag and bundle; same-version
+        # rebuilds cannot replace its assets even when the internal build increases.
         old_version = tuple(map(int, match.groups()))
-        new_version = tuple(map(int, manifest["version"].split("."))) + (manifest["build"],)
+        new_version = tuple(map(int, manifest["version"].split(".")))
         if old_version > new_version:
             raise ValueError("Refusing to roll back the latest release")
     # latest/download/update-manifest.json is activated only after the complete release is verified.
@@ -71,7 +73,7 @@ def publish(bundle, repo, activate):
         raise ValueError("Commit reviewed source changes before publishing")
     bundle = Path(bundle).resolve()
     manifest, assets = validate_bundle(bundle, repo)
-    tag = "v{}-build.{}".format(manifest["version"], manifest["build"])
+    tag = "v{}".format(manifest["version"])
     source_commit = json.loads((bundle / "release-manifest.json").read_text())["sourceCommit"]
     ensure_public_tag(repo, tag, source_commit)
     release = release_for_tag(repo, tag)

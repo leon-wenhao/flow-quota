@@ -11,7 +11,7 @@ import public_repository as repositories
 
 REPO = repositories.PUBLIC_REPO
 COMMIT = "a" * 40
-TAG = "v1.2.3-build.7"
+TAG = "v1.2.3"
 
 
 class RepositoryTests(unittest.TestCase):
@@ -44,6 +44,12 @@ class RepositoryTests(unittest.TestCase):
             repositories.ensure_public_tag(REPO, TAG, COMMIT)
             self.api.assert_called_with("repos/" + REPO + "/git/refs", "POST",
                                         {"ref": "refs/tags/" + TAG, "sha": COMMIT})
+
+    def test_build_suffix_and_incomplete_version_are_rejected_before_api(self):
+        for tag in ("v1.2.3-build.7", "v1.2", "1.2.3"):
+            with self.subTest(tag=tag), self.assertRaises(ValueError):
+                repositories.ensure_public_tag(REPO, tag, COMMIT)
+        self.api.assert_not_called()
 
     def test_diverged_or_unpushed_source_cannot_create_tag(self):
         for status in ("behind", "diverged"):

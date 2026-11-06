@@ -18,7 +18,7 @@ SPEC.loader.exec_module(bundle)
 REPO = "leon-wenhao/flow-quota"
 VERSION = "1.2.3"
 BUILD = 18
-TAG = "v1.2.3-build.18"
+TAG = "v1.2.3"
 
 
 class ReleaseBundleTests(unittest.TestCase):
@@ -145,7 +145,7 @@ class ReleaseBundleTests(unittest.TestCase):
                              ("fileName", self.names[1]), ("format", "zip"),
                              ("url", base + "../" + self.names[0]),
                              ("url", base + self.names[1]),
-                             ("url", base.replace(TAG, "v1.2.3") + self.names[0]),
+                             ("url", base.replace(TAG, "v1.2.3-build.18") + self.names[0]),
                              ("url", base + self.names[0] + "?token=secret"),
                              ("url", base.replace("https:", "http:") + self.names[0])):
             with self.subTest(field=field, value=value):

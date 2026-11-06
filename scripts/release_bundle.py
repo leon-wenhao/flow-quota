@@ -47,7 +47,7 @@ def _urls(repo, version, build):
         r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9][A-Za-z0-9_.-]*", repo),
         "Invalid repository; expected OWNER/REPO")
     root = "https://github.com/{}/releases".format(repo)
-    tag = "v{}-build.{}".format(version, build)
+    tag = "v{}".format(version)
     return root + "/tag/" + tag, root + "/download/" + tag + "/"
 
 
@@ -258,7 +258,7 @@ def main(argv=None):
             manifest, assets = validate_bundle(args.output, args.repo)
     except (ValueError, OSError) as error:
         parser.exit(1, "release bundle: {}\n".format(error))
-    print("Validated v{}-build.{}: {} assets".format(manifest["version"], manifest["build"], len(assets)))
+    print("Validated v{}: {} assets".format(manifest["version"], len(assets)))
     return 0
 
 

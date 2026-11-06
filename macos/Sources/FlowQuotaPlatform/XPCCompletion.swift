@@ -34,6 +34,7 @@ final class XPCCompletion: @unchecked Sendable {
         DispatchQueue.global().asyncAfter(deadline: .now() + 5, execute: timer)
     }
 
+    func failConnection(_ message: String) { resolve(.failure(PlatformError.connectionFailed(message))) }
     func fail(_ message: String) { resolve(.failure(PlatformError.unavailable(message))) }
     func succeed(_ data: Data) { resolve(.success(data)) }
     func cancel() { resolve(.failure(CancellationError())) }

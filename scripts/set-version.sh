@@ -72,8 +72,7 @@ manifest["version"] = os.environ["VERSION"]
 manifest["build"] = int(os.environ["BUILD"])
 manifest.pop("packages", None)
 manifest["publishedAt"] = None
-default_url = "https://github.com/leon-wenhao/flow-quota/releases/tag/v{}-build.{}".format(
-    manifest["version"], manifest["build"])
+default_url = "https://github.com/leon-wenhao/flow-quota/releases/tag/v{}".format(manifest["version"])
 for key, env_name in (("releaseNotesURL", "NOTES_URL"),
                       ("downloadURL", "DOWNLOAD_URL")):
     value = os.environ[env_name]

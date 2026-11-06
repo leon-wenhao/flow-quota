@@ -3,12 +3,14 @@ import Security
 
 public enum PlatformError: LocalizedError, Sendable {
     case unavailable(String)
+    /// XPC transport failure, distinct from an error returned by the running service.
+    case connectionFailed(String)
     case malformedReply
     case timeout
 
     public var errorDescription: String? {
         switch self {
-        case .unavailable(let message): return message
+        case .unavailable(let message), .connectionFailed(let message): return message
         case .malformedReply: return "本地服务返回了无法识别的数据。"
         case .timeout: return "本地服务响应超时，请检查后台服务状态。"
         }
