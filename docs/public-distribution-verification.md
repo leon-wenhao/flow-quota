@@ -95,3 +95,14 @@
 - GitHub 创建草稿后列表曾短暂未返回；沿用同一 bundle 恢复发布成功，未重复建版或覆盖正式附件。
 - 当前仍为 ad-hoc、未公证；macOS 14、Intel 真机运行以及覆盖安装后旧进程的真实系统恢复尚未验收。未替换本机安装、未启停采样服务、未操作生产数据库、未进行热点流量实验。旧独立分发仓库的删除状态仍以上节记录为准；本次仅整理当前项目的历史 Release/tag。
 - 本地发布包位于 `.artifacts/releases/FlowQuota-0.1.4-build-25/`；证据位于 `.artifacts/single-repository/0.1.4-*` 和 `version-tag-migration.json`，不进入 Git 历史。
+
+## 0.1.5 图表、预警记录与遗留文件清理发布（2026-11-06）
+
+- 源码提交 `58c28b83f4ad4db447d5b37f616f9a20243527b9` 已推送到 `main`；正式 tag `v0.1.5` 精确指向该源码。对外名称为 `Flow Quota 0.1.5`，不带 build 后缀，内部构建号为 26。
+- 本次包含柱状图文案与合计说明优化、移除重复饼图标题、预警记录四列表格／整行展开详情／常规状态收纳及异常持续可见，以及 16 个遗留文件和未使用界面辅助代码清理。统计与占比逻辑保持原样。
+- 清理后全量 Swift 回归 399 项、发布工具测试 31 项通过；最终浮层线程注解调整针对性重跑通过。两个架构的 Release 编译、严格 ad-hoc 签名和发布静态审计通过。成品 DMG 均重新只读挂载，检查应用／服务签名、版本、架构、最低系统版本、二进制与构建结果一致、Applications 链接、安装说明、背景及 Finder 元数据后推出。
+- 发布页：<https://github.com/leon-wenhao/flow-quota/releases/tag/v0.1.5>。Release ID `436222474`，发布时间 `2026-11-06T07:38:05Z`（北京时间 15:38:05），为非草稿、非预发布的 latest。六个附件的名称、uploaded 状态、大小与 GitHub SHA-256 digest 均和本地一致；发布说明补充本次具体变更。
+- arm64 DMG：2,472,448 bytes，SHA-256 `6ee85030d2217d39bd364ffbb3274c3aa54d74fe3c8632e8f61e1a5986eeed29`。
+- x86_64 DMG：2,588,160 bytes，SHA-256 `cc3fe0bf9d3aae6f3d8834ffd2f9e2952c8f00f09ecacd49bb6ebdd276656653`。
+- 匿名访问 `releases/latest/download/update-manifest.json` 返回与发布包逐字节一致的 0.1.5 更新清单。仅获取小型 JSON，未重新下载公开 DMG 做验收；安装包上传属于本次授权发布。
+- 本地发布包：`.artifacts/releases/FlowQuota-0.1.5-build-26/`；日志与核对结果：`.artifacts/release-0.1.5.log`、`.artifacts/release-0.1.5-verification.json`，均不进入 Git 历史。没有替换本机应用、启停采样或操作生产数据库。当前仍为 ad-hoc、未公证，Intel／macOS 14 真机与新装运行验收尚未完成；未进行热点流量实验。
