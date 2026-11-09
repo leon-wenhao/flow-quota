@@ -9,6 +9,15 @@
 
 更新日期：2026-11-05。本说明描述原生界面的职责、服务接口和验证范围；总体进度见 `implementation-status.md`。
 
+
+## 自定义图表时段输入（2026-11-09）
+
+`UsageTimeRangePicker` 负责开始／结束时间布局与无效顺序提示，`NativeUsageTimeField` 通过 `NSViewRepresentable` 包装 AppKit `NSDatePicker`。采用 `.textField` 样式和 `.hourMinute` 元素，不显示独立的上下步进箭头；等宽字段复用项目输入颜色、圆角与边框，保留本机时间格式。标签及空白区域点击聚焦原生输入，数字输入、方向键、Tab 与原生无障碍沿用系统控件；禁用时不可聚焦操作。窄宽度通过 `ViewThatFits` 切为纵向排列。
+
+时间限于当前自然日至服务快照时间，开始不早于结束时直接提示，不自动交换或修改范围。初始结束时间、跨日重置及编辑回写均按本地日历截到分钟起点，使自定义查询不再因隐藏秒数额外扩到下一分钟。最近一小时／今天的查询和分钟桶、接口／来源统计语义保持原实现，不新增数据库或采样行为。
+
+官方依据：Apple [NSDatePicker.Style.textField](https://developer.apple.com/documentation/appkit/nsdatepicker/style/textfield)、[NSDatePicker.datePickerElements](https://developer.apple.com/documentation/appkit/nsdatepicker/datepickerelements)，并核对本机 Xcode 27.2／macOS SDK 27.2 的 `NSDatePicker.h` 与 `NSDatePickerCell.h` 中样式、分钟元素、日期上下限及 target/action 声明；最低目标仍为 macOS 14。实际编译和原生视图测试验证字段无步进器、边界和可访问名称、分钟提交、点击内边距聚焦、禁用、300／560pt 布局及明暗预览。使用固定的模拟时刻，不读取用户流量库或生成验证流量；未在 macOS 14 真机操作验收。
+
 ## 当前网络与提醒预算
 
 服务契约中，`.expensive` 表示 `NWPath.status == .satisfied` 且 `isExpensive` 的路径并自动计量，`.hotspot` 只表示明确手动标记。二者的上传＋下载进入同一应用、当前日观测用量及提醒预算，切换不会清零或另发额度；无需 schema 变更。`.ordinary` 不自动计量，`.unknown` 表示网络状态不可用。
@@ -27,10 +36,10 @@
 
 - Swift Package executable：`FlowQuota`，target：`FlowQuotaApp`。
 - Swift tools 6.0 / Swift 6 language mode，最低 macOS 14；本机编译为 Xcode 27.2、Swift 6.4.2、macOS SDK 27.2、arm64。
-- `FlowQuotaApp.swift` 使用 `MenuBarExtra` 的 `.window` 样式，系统字体、SF Symbols、原生材质与控件。没有 Web UI 或额外依赖。
-- 面板通常宽 420 pt、高至多 680 pt，并按当前屏幕可见区域缩小；内容使用原生 ScrollView。图标与文字共同表达状态，不只依赖颜色。
+- `FlowQuotaApp.swift` 使用 AppKit `NSApplication` 启动既有 `AppDelegate`；`StatusItemController` 管理菜单栏图标、原生右键菜单与 SwiftUI 概览面板，`PreferencesWindowController` 管理唯一偏好设置窗口。没有空的 SwiftUI Settings scene、Web UI 或额外依赖。
+- 菜单栏概览宽 360 pt、高至多 680 pt；完整应用列表、图表与设置放入可调整大小的独立偏好窗口。图标与文字共同表达状态，不只依赖颜色。
 - `LSUIElement`、app bundle、开发签名和后台服务 plist 均由完整 app 打包脚本提供。UI 不设置 NetworkExtension entitlement，不安装过滤扩展。
-- 在完整 app 的 executable 参数中添加 `--window`，可打开同一 SwiftUI 面板的普通 NSWindow，便于原生检查。关闭该窗口不退出服务。
+- 在完整 app 的 executable 参数中添加 `--window`，可直接打开现有偏好设置窗口，便于原生检查。关闭该窗口不退出服务。
 
 独立 UI 编译可使用不同 scratch：
 
@@ -45,7 +54,8 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 
 | 文件 | 职责 |
 | --- | --- |
-| FlowQuotaApp.swift | 菜单栏／Settings scene、共享 UI state、可选普通窗口、退出代理 |
+| FlowQuotaApp.swift | AppKit 启动、共享 UI state、菜单栏／窗口控制器生命周期、退出代理 |
+| ApplicationMenuController.swift | 原生应用菜单、偏好设置及安全退出快捷键、文本编辑响应链 |
 | AppState.swift | AgentClient 调用、快照有效性、UI 权限、单一操作队列、ACK 与错误状态 |
 | AppMonitor.swift | AppDelegate 持有的应用生命周期轮询，面板隐藏时继续刷新并处理提醒 |
 | PanelView.swift | 面板导航、网络信息、应用分析列表与底部入口 |
@@ -579,3 +589,17 @@ PanelView 移除应用添加的 18 点圆角裁切，将 material 背景和细�
 本节取代前文按应用合计绘制主图、隐藏代理内核、前十／其他合并及混合 Clash 归因的展示规则。Mac 分时主图来自所选类别与时间范围的接口分钟记录，完整进程明细和进程双饼图分别展示原始观测，Clash 子来源另列辅助分组。主图不把互相独立、可能重叠的记录堆叠成精确总量分摊。
 
 应用列表的今日概览、分时明细和悬停均保留接口总量及来源未确认状态；上传与下载分别核对差额。所有返回的应用／系统服务身份可以滚动查看，包括代理内核及小用量来源。悬停摘要的空间上限不改变完整明细；容量或来源查询失败必须可见，接口主图继续独立显示。即使 Clash 暂无可展示行，也保留返回的覆盖／容量说明。当前计算契约及验证记录分别见 `traffic-accounting.md` 与 `implementation-status.md`。
+
+## 修复空白设置窗口（2026-11-09）
+
+菜单栏改为原生状态项后，SwiftUI App 的唯一 `Settings { EmptyView() }` 仍会生成标题为“Flow Quota 设置”的空窗口；真实页面则由独立 `PreferencesWindowController` 管理，造成重复入口。移除这个无内容 scene，使用公开 AppKit `NSApplication.shared.run()` 启动既有 AppDelegate，并在事件循环期间强持有 delegate（系统 delegate 属性为 weak）。界面继续通过 NSHostingController 使用现有 SwiftUI 页面，后台轮询、更新交接及退出代理维持原入口。
+
+`ApplicationMenuController` 为原生应用菜单提供“偏好设置…”／Command-comma、“退出并停止采集”／Command-Q，以及标准隐藏与编辑命令。设置复用 `preferences.show(.general)`，退出复用 `state.requestQuit()`，不直接调用 terminate 绕过采集停止确认。原生菜单栏右键及面板导航继续使用同一个偏好窗口。编辑项保持 nil target 走原生响应链。
+
+新增 3 项原生菜单回归：真实菜单操作打开有内容窗口、重复与关闭后打开复用同一窗口；通过 NSEvent 触发 Command-comma／Command-Q 并确认安全退出回调；文本编辑命令的响应链目标。使用假服务，不启用真实采样。全部 160 项应用测试串行通过（`.artifacts/settings-window-fix-tests.log`）；arm64／x86_64 Release 构建与严格签名审计通过（`.artifacts/settings-window-fix-build-arm64.log`、`.artifacts/settings-window-fix-build-x64.log`）。未安装替换正在运行的版本、未生成新 DMG 或发布。实际安装后点击各入口仍需本机复查。
+
+官方依据：Apple `NSApplication.run()`（启动事件循环）、`NSApplication.delegate`（weak 生命周期）与 `NSApplication.mainMenu`（设置原生主菜单）。2026-11-09 读取官方 Markdown 文档并以项目固定 Swift 6、最低 macOS 14 和本机 SDK 编译验证：
+
+- https://developer.apple.com/documentation/appkit/nsapplication/run()
+- https://developer.apple.com/documentation/appkit/nsapplication/delegate
+- https://developer.apple.com/documentation/appkit/nsapplication/mainmenu

@@ -7,6 +7,13 @@ struct UpdateSettingsView: View {
     var body: some View {
         SettingsSection(title: "软件更新") {
             VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 12) {
+                    Text("自动检查新版本").frame(maxWidth: .infinity, alignment: .leading)
+                    Toggle("自动检查新版本", isOn: Binding(
+                        get: { updater.automaticChecks.enabled },
+                        set: { updater.automaticChecks.setEnabled($0) }))
+                        .labelsHidden().toggleStyle(FlowQuotaToggleStyle()).fixedSize()
+                }
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("当前版本")

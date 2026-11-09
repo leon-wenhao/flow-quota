@@ -1,53 +1,71 @@
-# macOS 单仓库发布
+# macOS 双平台发布
 
-源码与安装包统一发布到公开仓库 `leon-wenhao/flow-quota`，采用 MIT 许可证。DMG 是 Release 附件，不加入 Git 历史。方案见 [单仓库方案](public-distribution-plan.md)。
+GitHub `leon-wenhao/flow-quota` 与 Gitee `Leon-wh/flow-quota` 维护同一份源码、版本和 tag。DMG 仅作为 Release 附件，构建一次、签名一次，再将相同字节发布到两端。当前 Gitee 已同步源码，Release 凭据与真实匿名附件验收尚未完成；不能据此声称国内应用内更新已上线。详细状态见 [双平台方案](gitee-distribution-plan.md)。
 
-## 日常发布
+## 日常提交
 
-先完成并审查源码，再设置版本。对外标题只显示三段版本号，tag 例如 `v0.1.4`，不带 build 后缀；每次发布版本号和内部构建号都必须递增。
-
-0.1.9 发布后，下一次发布可使用：
+在 `codex/功能名` 分支开发并审查，合入本地 main 后执行：
 
 ```bash
-./scripts/set-version.sh 0.1.10 31
-git add <本次需要发布的文件>
-git commit -m "release: prepare 0.1.10"
-git push origin main
+python3 scripts/push_sources.py
+```
+
+脚本使用固定的 GitHub HTTPS 与 Gitee SSH 地址，分别推送 main 并核对远端提交；不依赖 `.git/config` 的双 push URL，不强推或镜像删除。任一端失败会显示已完成端，解决连接或授权后重跑同一命令。新机器需先完成 `gh auth login` 和 Gitee SSH 密钥授权。
+
+## 发布前配置
+
+GitHub 使用 `gh` 已登录的发布权限；Gitee Release API 与 SSH 是不同授权。使用可读取授权用户资料、发布目标仓库 Release 的 Gitee 令牌，可通过环境变量 `GITEE_TOKEN` 提供，也可在本机钥匙串保存。以下命令提示安全输入，不把令牌写入命令参数：
+
+```bash
+security add-generic-password -a flow-quota -s flow-quota-gitee -w
+```
+
+不要将令牌发送到聊天、写入源码或版本附件。发布脚本在任何远端变更前检查两端 API 凭据及公开仓库；实际写入权限由各平台在发布操作时确认，拒绝后记录部分状态并停止。Sparkle 私钥继续使用原有钥匙串账户 `local.flowquota.app`。
+
+## 正式发布
+
+每次同时递增三段版本号和内部构建号。当前配置为 0.1.11 / 32，下一次可用 0.1.12 / 33；发布前核对两端最新版本，不能复用已发布版本。
+
+```bash
+./scripts/set-version.sh 0.1.12 33
+git add <已审查的本次文件>
+git commit -m "release: prepare 0.1.12"
+python3 scripts/push_sources.py
 ./scripts/release-macos.sh --publish --activate-manifest
 ```
 
-日常修改建议在 `codex/功能名` 分支完成并合入 `main`；发布从干净、已经推送的源码执行。脚本不会提交工作区修改、公开仓库或删除仓库；这些是本次迁移的一次性操作。先仅本地打包：
+不发布，仅本地构建：`./scripts/release-macos.sh`。默认输出为 `.artifacts/releases/FlowQuota-版本-build-构建号/`，不能覆盖已有目录。正式发布从干净工作区执行，脚本不替用户提交改动。
 
-```bash
-./scripts/release-macos.sh
-```
+发布流程串行执行，不同时启动多个版本：
 
-输出默认位于 `.artifacts/releases/FlowQuota-版本-build-构建号/`；已存在的目录不能覆盖，可指定 `--output-dir`。
+1. 验证两端公开仓库与可用 API 凭据；构建两个架构的 DMG，并检查版本、架构、最低系统版本、签名和内容白名单。
+2. 验证 bundle 和 sourceCommit，在两端推送同一 main 与精确指向源码的 `v版本` tag。已有 tag 不同则停止。
+3. GitHub 先建 draft，按八文件白名单上传，核对服务器大小和 SHA-256 后发布，但不设为 latest。
+4. Gitee 先建 prerelease，上传同一 DMG 与公共说明／清单。根据实际附件 URL 生成 Gitee 专用架构 appcast：沿用原包 Ed25519 签名，独立签署 feed。白名单仍为两个 DMG、两个 appcast、SHA256SUMS、update-manifest.json、release-manifest.json、RELEASE-NOTES.md。
+5. 不带令牌读取 Gitee 版本及附件，流式计算实际附件 SHA-256，与本地逐项比对，并检查 DMG 下载文件名能被 Sparkle 识别。不能只依赖名称／大小；拒绝 GitHub 下载地址和不受支持的重定向。此为正式发布审计，遵守不在热点下做实验性下载的限制；本轮只进行离线模拟，尚未执行真实包回读。
+6. `--activate-manifest` 先检查 GitHub 与 Gitee 的版本／构建号单调递增，再将 Gitee 置为正式版并写入 `<!-- flow-quota-ready:构建号 -->`，最后将 GitHub 设为 latest。客户端忽略没有该标记或仍为 prerelease 的 Gitee 版本。
 
-## 发布与更新顺序
+Gitee API 的 `/releases/latest` 表示最后更新的 Release，客户端不用该接口判断最高版本，而是有界分页查询已激活版本，按内部构建号选择。两端不是原子事务，最后一步仍可能单端成功；不回滚、不覆写已发布包，按记录继续即可。
 
-1. 验证 origin 与目标都是 `leon-wenhao/flow-quota`，仓库公开、可用且默认分支为 main；工作区干净。
-2. 构建 Apple silicon 与 Intel 的 release DMG，检查 app/Agent 签名、架构、版本和最小系统版本；保存实际源码提交。
-3. 使用明确的八文件白名单：两个 DMG、`appcast-arm64.xml`、`appcast-x86_64.xml`、`SHA256SUMS`、`release-manifest.json`、`update-manifest.json`、`RELEASE-NOTES.md`。更新源和 DMG 使用 Ed25519 签名，并以提交的公钥进行独立验证。拒绝额外文件、目录和符号链接。
-4. 验证 bundle 的 sourceCommit 属于远端 main；tag 必须准确指向该提交。建立草稿，按白名单上传；核对 GitHub 返回的名称、上传状态、大小和 SHA-256 后发布，暂不标记 latest。
-5. `--activate-manifest` 再次验证正式附件，拒绝版本回退，并读取上一版清单确认内部构建号严格递增后标记 latest。新客户端按架构使用 `https://github.com/leon-wenhao/flow-quota/releases/latest/download/appcast-arm64.xml` 或 `appcast-x86_64.xml`。0.1.5 及之前客户端仍读取：
-   `https://github.com/leon-wenhao/flow-quota/releases/latest/download/update-manifest.json`。
-
-根目录 `update-manifest.json` 只是构建输入，设置下一个版本不影响在线更新。更新入口不依赖 main 新增提交，也不使用跨仓库同步。所有版本发布操作应串行执行，避免同时改变 latest。
+根目录 `update-manifest.json` 只是构建输入。Gitee 公共 JSON 清单保留 GitHub bundle 的原始审计数据，客户端只使用 Gitee 独立签名的 appcast 及其 Gitee enclosure；不会沿公共清单里的 GitHub URL 下载。
 
 ## 中断恢复
 
-保留原 bundle，重试以下命令，不重新构建或覆盖正式附件：
+保留原 bundle 及同级的 `-gitee` 签名 feed 目录。重跑，不重新构建：
 
 ```bash
-python3 scripts/publish_macos.py   --bundle .artifacts/releases/FlowQuota-0.1.9-build-30   --activate-manifest
+python3 scripts/publish_dual.py \
+  --bundle .artifacts/releases/FlowQuota-0.1.12-build-33 \
+  --activate-manifest
 ```
 
-草稿只补传缺失项，已上传项必须摘要相同；正式版仅核验，不使用 `--clobber`。若正式版已发布但 latest 激活失败，重复命令只会核对并恢复激活。源码或附件有变动时递增版本号和内部构建号，不改写原 tag。
+仅上传待审查附件时省略 `--activate-manifest`。`publish_macos.py` 的命令行入口也转入双端发布，避免旧命令意外只发布 GitHub；其内部 GitHub 适配函数供双端脚本调用。
+
+同级 `-publication.json` 记录当前执行已确认的同步、发布、核验和激活步骤，不含凭据。它是排障记录，重试仍读取远端真实状态，不信任记录代替验证。草稿／预览版只补传缺失项；已有附件必须摘要一致，正式版缺附件或内容不同直接报错，不能原地补包。若 PATCH 成功但响应丢失，下次通过公开列表核对恢复；若 GitHub latest 激活失败，保留已完成的 Gitee 激活并重试。
 
 ## 安装与构建限制
 
-更新只由用户点击“检查更新”触发。0.1.6 起使用 Sparkle 标准界面，经用户确认后按架构下载、校验并完成替换和重启；首次安装及旧版仍可通过 DMG 拖拽安装。没有后台自动检查、静默下载或网络阻断。
+2026-11-09 起，默认自动查询新版本，可在设置关闭；检查不受网络类别或采集启停限制，只在界面提示。用户点击“检查更新”后使用 Sparkle 标准界面，经确认按架构下载、校验并完成替换和重启；首次安装及旧版仍可通过 DMG 拖拽安装。不自动下载或安装，不提供网络阻断。
 
 DMG 固定图标视图：Flow Quota 在左、Applications 在右、中间箭头、底部安装提示及说明文件。构建布局需要登录图形会话和 Finder 自动化授权，失败时明确停止；用户打开成品无需此授权。同版本卷已挂载时先手动推出。可单独打包：
 

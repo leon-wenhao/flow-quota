@@ -36,9 +36,10 @@ def verify(app, arch, version, build):
     expected_key = plistlib.loads((Path(__file__).resolve().parents[1] / "macos/Configuration/Info.plist").read_bytes())["SUPublicEDKey"]
     if info.get("SUPublicEDKey") != expected_key or not info.get("SURequireSignedFeed") or not info.get("SUVerifyUpdateBeforeExtraction"):
         raise ValueError("Missing updater authentication")
+    # App-owned informational probes are allowed; Sparkle's UI scheduler stays off.
     for key in ("SUEnableAutomaticChecks", "SUAutomaticallyUpdate", "SUAllowsAutomaticUpdates", "SUEnableSystemProfiling"):
         if info.get(key) is not False:
-            raise ValueError("Automatic update/profile collection must be disabled")
+            raise ValueError("Sparkle UI scheduling, automatic installation and profile collection must be disabled")
     for name in ("FlowQuota", "FlowQuotaAgent"):
         binary = app / "Contents/MacOS" / name
         subprocess.run(["codesign", "--verify", "--strict", str(binary)], check=True)

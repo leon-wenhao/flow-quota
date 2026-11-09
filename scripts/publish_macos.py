@@ -45,7 +45,7 @@ def release_for_tag(repo, tag):
     return next((item for page in pages for item in page if item["tag_name"] == tag), None)
 
 
-def activate_manifest(bundle, repo, tag):
+def activate_manifest(bundle, repo, tag, dry_run=False):
     # Check published state and assets again, including when resuming activation.
     manifest, assets = validate_bundle(bundle, repo)
     release = release_for_tag(repo, tag)
@@ -76,7 +76,8 @@ def activate_manifest(bundle, repo, tag):
                     or old["build"] <= 0 or manifest["build"] <= old["build"]):
                 raise ValueError("Sparkle requires a strictly increasing internal build")
     # Latest attachment URLs are activated only after the complete release is verified.
-    run("gh", "release", "edit", tag, "--repo", repo, "--latest")
+    if not dry_run:
+        run("gh", "release", "edit", tag, "--repo", repo, "--latest")
 
 
 def publish(bundle, repo, activate):
@@ -116,10 +117,12 @@ def publish(bundle, repo, activate):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bundle", required=True)
-    parser.add_argument("--repo", default=PUBLIC_REPO)
+    parser.add_argument("--repo", default=PUBLIC_REPO, choices=[PUBLIC_REPO])
     parser.add_argument("--activate-manifest", action="store_true")
     args = parser.parse_args()
     try:
-        publish(args.bundle, args.repo, args.activate_manifest)
-    except (ValueError, subprocess.CalledProcessError) as error:
+        # Keep old automation commands from accidentally publishing only one host.
+        from publish_dual import publish_dual
+        publish_dual(args.bundle, args.activate_manifest)
+    except (ValueError, OSError, subprocess.SubprocessError) as error:
         parser.exit(1, "Publish stopped: {}\n".format(error))

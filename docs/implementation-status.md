@@ -1,5 +1,31 @@
 # 提醒版实施与验证记录
 
+## 自动版本查询与菜单文案（2026-11-09）
+
+按用户新要求移除右键菜单入口的省略号，保留原导航与动作。新增“自动检查新版本”原生开关，默认开启并保存显式关闭选择；启动至少 30 秒后查询，成功间隔 24 小时，失败至少间隔 1 小时，尝试与成功时间跨重启保留。应用后台循环复用既有轮询，不依赖面板显示、采集启停或网络类别，普通、热点／高成本和未知网络均可查询；唤醒后在下一轮处理到期检查。
+
+Sparkle 2.10.1 在主线程执行 `checkForUpdateInformation()`，仅接收版本结果；自身后台交互式检查、自动下载、静默安装与系统信息上报保持关闭。发现新版后，面板原有整行入口显示“有新版本，查看更新”并打开通用设置，不增加标题栏拥挤；手动检查仍可在关闭自动检查时使用。安装交接、恢复标记与暂停状态保留逻辑沿用原实现。更新源继续只有 GitHub，未增加镜像。官方依据、调度及偏好边界见 `in-app-updates.md`。
+
+验证：当前工作区应用层回归 149 项通过；新增 6 项离线测试覆盖默认／保存关闭、启动延迟与就绪门控、重复尝试抑制、失败重试、跨重启成功间隔、日期回退及仅查询回调的错误清除／无安装副作用；原更新策略测试同步验证关闭自动检查仍允许手动检查。Python 发布测试 35 项通过；arm64 Release 构建、应用审计及严格签名检查通过，版本仍为 0.1.11／内部构建 32。日志：`.artifacts/automatic-update-app-tests.log`、`.artifacts/automatic-update-python-tests.log`、`.artifacts/automatic-update-build.log`。
+
+测试使用临时偏好与未启动的 Sparkle 控制器；未发起真实 GitHub 更新查询、包下载或热点实验流量，未安装替换、推送或发布。实际后台查询和新版本提示仍需安装后的运行验收；编译、模拟回调不等同真实跨版本安装或 macOS 14／Intel 真机验收。
+
+## 自定义时段输入优化（2026-11-09）
+
+图表自定义时段改为等宽的开始／结束原生时间字段，移除独立上下步进箭头，沿用共享输入配色、圆角与边框；标签和空白区域可聚焦输入，窄宽度纵向排列。字段保留系统时间格式、原生键盘编辑和无障碍名称，禁用时拒绝操作；时间顺序无效直接提示。初始值、跨日重置及提交统一到显示的分钟，不再由隐藏秒数导致自定义结束范围额外向上取整一分钟。统计与采样逻辑未改。
+
+Xcode 27.2／Swift 6.4.2／macOS SDK 27.2 编译及 28 项相关测试通过，包含 300／560pt 布局、正常／无效范围、分钟提交、原生字段的日期上下限与无障碍标签、无步进器、内边距点击聚焦及禁用检查，并回归原图表数据与共享控件点击区域。明暗原生视图预览已人工查看，使用模拟时刻。日志 `.artifacts/time-range-picker-tests.log`，预览 `.artifacts/time-range-picker-preview.png`；官方 API 及实现入口见 `ui-implementation.md`。未生成流量、未读写实际统计库、未替换本机已安装应用；macOS 14 真机键盘操作未实测。
+
+## 菜单栏原生右键菜单（2026-11-09）
+
+菜单栏宿主由 SwiftUI `MenuBarExtra(.window)` 调整为公开 AppKit `NSStatusItem`，通过 `NSStatusBarButton.sendAction(on:)` 接收左右键释放事件。左键仍显示原有 `PanelView`（SwiftUI 由 `NSHostingController` 承载于 transient `NSPopover`）；右键／双指点按和 Control 点按显示原生 `NSMenu`。菜单按导航、设置／更新、退出分组，提供应用用量、用量图表、预警记录、通用设置、检查更新和退出并停止采集。菜单项复用既有窗口导航、用户主动更新和退出协调器；更新未就绪、正在操作或退出交接时禁用相关项，执行时再次核对状态。
+
+状态项继续显示紧凑用量／未知“—”，监听已有可观察快照及本机显示偏好，无新增采样或轮询；完整类别、采样信息和辅助操作说明保留在悬停与无障碍信息中。概览沿用既有外观偏好及内容，不添加自定义圆角外框；系统 popover 的宿主外框由 AppKit 管理。关闭概览、打开菜单和页面导航不停止后台采集或轮询。
+
+官方 API 依据：Xcode 27.2／macOS SDK 27.2 的 AppKit `NSControl.h`、`NSStatusItem.h`、`NSMenu.h`、`NSPopover.h`，目标最低 macOS 14；分别核对事件掩码、状态项按钮／移除生命周期、定位弹出菜单和 transient popover 的关闭行为。参考 [NSStatusItem](https://developer.apple.com/documentation/appkit/nsstatusitem)、[NSMenu](https://developer.apple.com/documentation/appkit/nsmenu) 与 [NSPopover](https://developer.apple.com/documentation/appkit/nspopover)。所有状态项和窗口操作在主线程执行，无私有 API 或全局鼠标监听。
+
+验证：应用层回归 139 项通过，含 5 项新增菜单栏测试（次级点击识别、页面路由、忙碌退出保护、用量与显示偏好、面板展开／关闭及复用）；arm64 Release 构建与 ad-hoc／Sparkle 签名、架构和应用文件审计通过。日志：`.artifacts/status-item-tests.log`、`.artifacts/status-item-app-regression.log`、`.artifacts/status-item-build.log`。测试仅使用假服务和临时偏好；测试宿主的系统状态项窗口高度为 0，不能用于屏幕定位，因此面板显示检查使用真实临时窗口作为锚点，并复用同一显示逻辑。未在已安装应用中实测触控板手势、菜单屏幕定位、Intel／macOS 14 真机；未启用真实采集、未制造热点验证流量、未安装替换或发布新版本。
+
 ## 0.1.9 正式发布核验（2026-11-06）
 
 已发布公开 Release `0.1.9` 并激活为 latest，发布时间为 2026-11-06 23:57:44（Asia/Shanghai）。内部构建号 30，tag `v0.1.9` 精确指向源码提交 `fad9e0a333b323704f181cf34f44482fa857ab7e`；发布后补充本段记录的文档提交不改变该 tag。
@@ -552,3 +578,25 @@ arm64及x86_64优化构建、完整应用审计及严格ad-hoc签名检查通过
 新增 `ApplicationRegistration`，每次后台服务首次注册或注销后替换注册前，先强制登记当前完整应用包，再调用 `SMAppService.register()`；登记失败、批准状态变化或 XPC 自检失败均保持恢复标记和暂停状态。新增回归用例覆盖首次注册、旧服务超时替换、连续更新、登记失败及用户批准状态变化。应用启动、服务采集与更新入口不会因为“注册 API 返回成功”而提前报告成功。
 
 本机已通过修复后的真实应用恢复 0.1.8：服务状态 collecting，XPC 快照正常，`nettop` 仅有当前 Agent 启动的一份实例；没有生成下载、上传、测速或热点实验流量，没有改动生产数据库。完整 Swift 回归 **431项通过**，更新恢复定向测试和 arm64 Release 构建、严格签名检查通过。跨版本 Sparkle 真正替换尚未重新进行真实安装验收，下一版发布前仍需用新的构建包执行一次安装交接检查。
+
+## GitHub 优先、Gitee 回退与双端发布（2026-11-09）
+
+客户端每次检查从 GitHub 开始，使用 Sparkle 2.10.1 的信息探测完成签名验证；失败才尝试一次 Gitee。正常无新版本不回退。Gitee 通过公开 Release／附件 API 查找已激活、非 prerelease 的最高构建及对应架构 feed，按 1 MiB、最多 10 页及单请求 15 秒约束读取；不携带 Cookie 或发布凭据。手动检查先在设置显示选源进度，再进入同源 Sparkle 标准界面；自动只更新界面提示。双端错误分别保留，关闭自动检查阻止后续备用探测。探测不触发安装交接／采集恢复，签名公钥、feed 必须签名及包预验证不变。
+
+新增 `scripts/push_sources.py` 核验并同步固定两端 main／tag；新增 `gitee_api.py`、`gitee_release.py`、`publish_dual.py` 分离凭据／传输、Gitee feed 与发布、双端编排。`release-macos.sh --publish` 与旧 Python CLI 均进入双端编排。包只构建并签名一次；Gitee feed 使用实际 Gitee 下载地址，保留包签名并独立签署 feed。匿名回读比对附件真实 SHA-256，额外检查 DMG 响应文件名可由 Sparkle 识别。Gitee 先以 prerelease 上传，完整核验后写 ready 标记并转正式，再激活 GitHub latest；拒绝版本／构建倒退、不同 sourceCommit、附件差异或正式版本补包。部分失败保存不含凭据的状态记录，重试读取真实远端，不重建或覆盖。
+
+验证结果：
+
+- 应用测试 157 项串行通过，含回退顺序、无更新不切源、双端错误、关闭自动检查、架构／元数据限制、Sparkle 动态 feed selector 和探测不改变服务交接状态。日志 `.artifacts/update-fallback-app-tests.log`。
+- 并行运行曾有 `backgroundLoopDeliversWithoutCreatingPanelAndStopCancelsPolling` 的两秒轮询断言超时；原断言未改。独立运行 0.051 秒通过，全部应用测试串行 11.560 秒通过。保留 `.artifacts/update-fallback-app-tests-concurrent-failure.log`、`.artifacts/update-fallback-monitor-recheck.log`，作为并行时序敏感的证据。
+- Python 发布测试 55 项通过，含相同包／不同源签名 feed、HTTP 表单与流式 multipart、凭据缺失及错误脱敏、匿名回读摘要／大小／文件名、缺失附件续传、正式版本不可改、tag 冲突、单端失败记录与先核验后激活。日志 `.artifacts/update-fallback-python-tests.log`。API 与钥匙串边界使用离线替身，不作为实际 Gitee 平台验收。
+- Apple Silicon／Intel Release 编译、架构／最低系统版本检查、严格签名及包内容静态审计通过，日志 `.artifacts/update-fallback-build.log`、`.artifacts/update-fallback-build-x64.log`。未改变版本配置（0.1.11 / 32），未打新 DMG、未安装、未推送本轮工作区或发布新版本。`git diff --check` 和发布 shell 语法检查通过。
+
+尚未完成的硬性条件：发布机无 `GITEE_TOKEN`／`GITEE_ACCESS_TOKEN`，也无 `flow-quota-gitee` 钥匙串项；现有 Git SSH 不能代替 Release API 令牌。未创建 Gitee Release，真实附件的匿名可访问性、大小限制、CDN 重定向与真实跨版本安装尚未验收。客户端只有找到已核验并激活的 Gitee feed 才切换，不能将此代码或公开源码仓库声称为国内更新已上线。未制造热点实验流量，未更改实际采集或生产数据库。
+
+
+## 空白设置窗口修复（2026-11-09）
+
+移除残留的 `Settings { EmptyView() }`，改由 AppKit 事件循环启动既有 AppDelegate，消除独立空设置窗口的创建入口。新增原生应用菜单控制器，设置菜单／Command-comma 复用现有偏好设置窗口；Command-Q 保持原有停止采集与退出确认路径；标准编辑动作走原生响应链。SwiftUI 页面、状态项、后台轮询、数据与更新交接不作替代实现。
+
+160 项应用测试串行通过，新增 3 项原生菜单／快捷键／单窗口复用回归均使用假服务；arm64 和 x86_64 Release 构建及严格签名审计通过。证据：`.artifacts/settings-window-fix-tests.log`、`.artifacts/settings-window-fix-build-arm64.log`、`.artifacts/settings-window-fix-build-x64.log`。版本保持 0.1.11 / 32，本地 `.app` 已重建；未替换运行中的安装版、未打新 DMG、未推送或发布，未开启真实采样或生成网络实验流量。官方 API 与实际安装后待查范围见 [界面说明](ui-implementation.md) 的对应章节。

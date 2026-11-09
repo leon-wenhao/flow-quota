@@ -5,7 +5,7 @@ macOS 菜单栏流量统计与阈值提醒工具，采用 [MIT 许可证](LICENS
 - [下载安装包](https://github.com/leon-wenhao/flow-quota/releases/latest)：Apple 芯片选 `arm64.dmg`，Intel 选 `x86_64.dmg`。
 - [安装与更新](INSTALL.md) · [分发与数据说明](DISTRIBUTION.md) · [反馈问题](https://github.com/leon-wenhao/flow-quota/issues)。
 - 当前安装包使用 ad-hoc 签名，尚未 Apple 公证；只统计和提醒，不阻断网络。
-- 源码和安装包统一在本仓库维护；发布流程见 [发布说明](docs/release-macos.md)。
+- 源码以同一份历史同步至 [Gitee](https://gitee.com/Leon-wh/flow-quota)；双端发布流程见 [发布说明](docs/release-macos.md)。Gitee 更新附件尚待发布及匿名下载验收，当前下载安装入口仍为 GitHub。
 
 
 <img src="assets/brand/logo-preview.png" alt="Flow Quota Logo" width="120" height="120">
@@ -49,7 +49,7 @@ open ".artifacts/arm64/Flow Quota.app" --args --window
 
 ## 发布
 
-源码、文档和安装包统一在 `leon-wenhao/flow-quota` 公开，源码采用 MIT，DMG 只作为 Releases 附件。流程见 [公开分发方案](docs/public-distribution-plan.md)、[macOS 发布流程](docs/release-macos.md) 和 [应用内更新设计](docs/in-app-updates.md)。使用 `scripts/set-version.sh` 同步版本，提交并推送后执行 `scripts/release-macos.sh --publish --activate-manifest`。客户端仅在点击“检查更新”时联网，确认后由 Sparkle 校验、替换并重启，无需再次拖拽应用。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，系统仍可能要求额外确认。
+源码、文档和安装包统一在 `leon-wenhao/flow-quota` 公开，源码采用 MIT，DMG 只作为 Releases 附件。流程见 [公开分发方案](docs/public-distribution-plan.md)、[macOS 发布流程](docs/release-macos.md) 和 [应用内更新设计](docs/in-app-updates.md)。使用 `scripts/set-version.sh` 同步版本，提交并推送后执行 `scripts/release-macos.sh --publish --activate-manifest`。客户端默认自动查询新版本（可在设置关闭），覆盖所有网络类别，仅在界面提示；用户主动检查并确认后由 Sparkle 下载、校验、替换并重启，无需再次拖拽应用。当前包使用 ad-hoc 签名，未完成 Developer ID 公证，系统仍可能要求额外确认。
 
 ## 首次使用与验证
 

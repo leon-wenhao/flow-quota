@@ -1,6 +1,6 @@
 import Foundation
 
-/// One application-lifetime loop, independent of MenuBarExtra content creation or visibility.
+/// One application-lifetime loop, independent of status-item panel creation or visibility.
 /// Interval injection lets tests verify background delivery without a native panel or a long wait.
 @MainActor final class AppMonitor {
     private let state: AppState
@@ -21,6 +21,7 @@ import Foundation
         let defaults = defaults
         task = Task { @MainActor in
             while !Task.isCancelled {
+                state.updater.checkAutomaticallyIfDue()
                 await state.refresh()
                 await state.notifications.refresh()
                 // Read after each request: edits apply to the next wait without cancelling

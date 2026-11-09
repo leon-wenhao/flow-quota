@@ -145,19 +145,25 @@ func failureNeverReleasesInstallationAndRetryKeepsIntent(step: String) async thr
     #expect(!store.hasPendingInstallation)
 }
 
-@MainActor @Test func updaterRejectsAllBackgroundCheckTypes() throws {
-    let controller = AppUpdater()
+@MainActor @Test func updaterAllowsOnlyQuietAutomaticChecksAndExplicitManualChecks() throws {
+    let suite = "flowquota-check-policy-test-" + UUID().uuidString
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let controller = AppUpdater(defaults: defaults)
     // SPUUpdater is not started and no HTTP or installed-app interaction occurs.
     let sparkle = Sparkle.SPUStandardUpdaterController(startingUpdater: false,
                                                        updaterDelegate: nil, userDriverDelegate: nil).updater
     #expect(throws: (any Error).self) { try controller.updater(sparkle, mayPerform: .updatesInBackground) }
+    try controller.updater(sparkle, mayPerform: .updateInformation)
+    controller.automaticChecks.setEnabled(false)
     #expect(throws: (any Error).self) { try controller.updater(sparkle, mayPerform: .updateInformation) }
+    try controller.updater(sparkle, mayPerform: .updates)
     #expect(!controller.updaterShouldPromptForPermissionToCheck(forUpdates: sparkle))
 }
 
 @MainActor @Test func sparkleRecognizesLifecycleAndManualCheckDelegateSelectors() {
     let updater = AppUpdater()
-    for selector in ["updater:mayPerformUpdateCheck:error:",
+    for selector in ["feedURLStringForUpdater:", "updater:mayPerformUpdateCheck:error:",
                      "updaterShouldPromptForPermissionToCheckForUpdates:",
                      "updater:didFindValidUpdate:", "updaterDidNotFindUpdate:error:",
                      "updater:didExtractUpdate:",

@@ -36,8 +36,12 @@ struct PanelView: View {
                 .padding(.horizontal, 16).padding(.bottom, 12)
             Divider()
             VStack(spacing: 8) {
-                Button { openPreferences(hasReadLocalSetup ? .applications : .help) } label: {
-                    Label("偏好设置…", systemImage: "slider.horizontal.3")
+                Button {
+                    if state.updater.availableVersion != nil { openPreferences(.general) }
+                    else { openPreferences(hasReadLocalSetup ? .applications : .help) }
+                } label: {
+                    Label(state.updater.availableVersion == nil ? "偏好设置" : "有新版本，查看更新",
+                          systemImage: state.updater.availableVersion == nil ? "slider.horizontal.3" : "arrow.down.circle")
                         .frame(maxWidth: .infinity)
                 }
                 .settingsAction()

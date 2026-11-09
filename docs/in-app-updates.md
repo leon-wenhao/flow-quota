@@ -1,6 +1,16 @@
-# 手动应用内更新
+# 应用内更新
 
-Flow Quota 使用 Sparkle 2.10.1（SwiftPM 精确锁定，macOS 14+），首次安装仍是 DMG 拖拽，后续由“检查更新”打开标准更新界面，下载、验证、安装并重启。没有启动检查、定时检查、自动下载或退出静默安装。
+Flow Quota 使用 Sparkle 2.10.1（SwiftPM 精确锁定，macOS 14+），首次安装仍是 DMG 拖拽，后续由“检查更新”打开标准更新界面，下载、验证、安装并重启。2026-11-09 起默认开启自动版本查询，设置中可关闭；查询不自动弹窗、下载或安装。
+
+## 自动版本查询（2026-11-09）
+
+本机偏好保存自动检查开关（默认开启）、最近尝试和最近成功时间。复用主应用原有 1–5 秒轮询，启动至少 30 秒后检查；成功后 24 小时才再次检查，失败至少间隔 1 小时重试。重启保留间隔；唤醒后在下一轮补做已到期检查，日期回退不被未来时间戳永久阻塞。普通网络、热点／高成本网络、网络状态未知以及暂停采集均不阻止查询。网络不可用时按失败处理并在软件更新中展示错误。关闭自动检查不取消已发出的查询，后续不再发起；手动检查不受开关或间隔限制。
+
+GitHub 优先和一次 Gitee 回退均在主线程调用 Sparkle 2.10.1 的 `SPUUpdater.checkForUpdateInformation()`，只查询 appcast 并通过 delegate 更新版本提示；Sparkle 自身会忽略用户已跳过的版本。查询中、安装交接、服务恢复或其他服务操作中不会启动另一次自动查询。找到新版在菜单栏面板显示“有新版本”，通用设置显示版本信息；不激活应用、不弹更新框、不下载包。用户点击“检查更新”时先静默确认可用源，成功后在同源打开标准交互流程；两端失败则打开通用设置显示错误。失败信息保留在通用设置，成功查询后清除。
+
+`SUEnableAutomaticChecks` 和 `automaticallyChecksForUpdates` 继续为 false，用来禁用 Sparkle 自带的后台交互式检查；应用自有调度只允许 `.updateInformation`，拒绝 `.updatesInBackground`。自动下载／安装及系统信息上报继续关闭。更新优先 GitHub，失败后尝试 Gitee 已激活 Release 的架构清单；正常无更新不回退，签名校验保持不变。Gitee 真实附件尚待发布与匿名验收，不能视为已上线。检查时间属于通用偏好，不涉及统计数据库或 schema。
+
+官方 API：Sparkle `SPUUpdater` 的 `checkForUpdateInformation` 文档（https://sparkle-project.org/documentation/api-reference/Classes/SPUUpdater.html），并核对固定依赖 2.10.1 的 `SPUUpdater.h`、`SPUUpdateCheck.h` 与 `SPUUpdaterDelegate.h`。该 API 要求主线程，只通过查找／未找到／完成回调提供结果，已有会话时不启动新查询。
 
 ## 更新与服务交接
 
@@ -26,7 +36,7 @@ Flow Quota 使用 Sparkle 2.10.1（SwiftPM 精确锁定，macOS 14+），首次�
 
 - https://sparkle-project.org/documentation/ ：Ed25519、签名 feed、提取前验证；2.10.1 的 SUUpdateValidator.m 明确允许有效 EdDSA 下使用 ad-hoc 签名。
 - https://sparkle-project.org/documentation/package-manager/ ：SwiftPM 二进制包不含命令行签名工具，工具使用同版本官方发行包。
-- https://sparkle-project.org/documentation/customization/ ：SPUStandardUpdaterController 与仅手动检查策略。
+- https://sparkle-project.org/documentation/customization/ ：SPUStandardUpdaterController 与自定义更新策略。
 - https://github.com/sparkle-project/Sparkle/blob/2.10.1/Sparkle/SPUUpdaterDelegate.h ：延迟安装 continuation、更新完成及失败回调。
 - https://developer.apple.com/documentation/servicemanagement/smappservice/unregister() ：等待后台进程终止后交接。
 
@@ -40,3 +50,7 @@ Flow Quota 使用 Sparkle 2.10.1（SwiftPM 精确锁定，macOS 14+），首次�
 - 本地生成两个 0.1.6 / 27 预览 DMG，仅覆盖构建参数，未修改正式版本文件；两个 DMG 均只读挂载并复查应用。真实 DMG 和两个 appcast 经钥匙串签名后，以提交公钥独立验证通过。预览清单刻意使用全零 sourceCommit，不能作为正式发布源码；未上传 GitHub。
 - 现有 0.1.5 磁盘仍挂载，所以使用新预览版本验证打包，未操作用户原挂载。没有安装或替换本机现有应用，没有启动采集或执行热点流量实验。
 - 尚未验收：真实跨版本自动替换及重启、实际 LaunchAgent 注销/重注册与系统提示、macOS 14 和 Intel 真机运行。这些结果不能由模拟服务、编译或只读 DMG 审计代替。
+
+## 双源发布与回退（2026-11-09）
+
+入口、凭据、完整性核验、激活标记与重试方式见 [双平台方案](gitee-distribution-plan.md) 和 [发布流程](release-macos.md)。自动检查失败后只保留可见错误，后续按至少 1 小时间隔重试，不循环切源；用户重新手动检查从 GitHub 开始。

@@ -15,13 +15,13 @@ Usage: scripts/release-macos.sh [options]
 
 Build two macOS DMGs and an audited release bundle. Source and DMGs share the public project repository.
   --output-dir PATH        New local output directory
-  --publish                Publish to the public source repository through GitHub REST API
-  --activate-manifest      Activate latest Release manifest after verification
+  --publish                Publish the same bundle to GitHub and Gitee
+  --activate-manifest      Activate both update sources after anonymous verification
   --repo OWNER/REPO        Must be leon-wenhao/flow-quota
 
 Set versions with scripts/set-version.sh before building.
 Resume publication without rebuilding:
-  python3 scripts/publish_macos.py --bundle PATH --activate-manifest
+  python3 scripts/publish_dual.py --bundle PATH --activate-manifest
 USAGE
 }
 while (($#)); do
@@ -53,7 +53,9 @@ if $PUBLISH; then
 import sys
 sys.path.insert(0, sys.argv[1])
 from public_repository import check_repositories
+from gitee_api import GiteeAPI, credential
 check_repositories(sys.argv[2])
+GiteeAPI(credential()).preflight()
 PY_CHECK
 fi
 INFO="$ROOT/macos/Configuration/Info.plist"
@@ -82,6 +84,6 @@ mkdir -p "$OUTPUT_DIR"
 if $PUBLISH; then
     ARGS=(--bundle "$OUTPUT_DIR" --repo "$REPO")
     if $ACTIVATE; then ARGS+=(--activate-manifest); fi
-    /usr/bin/python3 "$ROOT/scripts/publish_macos.py" "${ARGS[@]}"
+    /usr/bin/python3 "$ROOT/scripts/publish_dual.py" "${ARGS[@]}"
 fi
 printf 'Release bundle prepared: %s\n' "$OUTPUT_DIR"

@@ -6,7 +6,7 @@ struct UsageTimelineView: View {
     let state: AppState
     @State private var range: TimeRange = .lastHour
     @State private var customStart = Calendar.current.startOfDay(for: Date())
-    @State private var customEnd = Date()
+    @State private var customEnd = UsageTimeRangePicker.minute(Date())
     @State private var result: ApplicationUsageTimeline?
     @State private var loadError: String?
     @State private var initialDate = Date()
@@ -38,11 +38,8 @@ struct UsageTimelineView: View {
                     accessibilityLabel: "图表时间范围"
                 )
                 if range == .custom {
-                    HStack {
-                        DatePicker("从", selection: $customStart, in: dayStart...max(dayStart, now), displayedComponents: .hourAndMinute)
-                        DatePicker("到", selection: $customEnd, in: dayStart...max(dayStart, now), displayedComponents: .hourAndMinute)
-                    }
-                    .font(.caption)
+                    UsageTimeRangePicker(start: $customStart, end: $customEnd,
+                        bounds: dayStart...max(dayStart, now))
                 }
                 if let meter, snapshotUsable {
                     chart(meter, processes: data)
@@ -77,7 +74,7 @@ struct UsageTimelineView: View {
         }
         .onChange(of: dayStart) {
             customStart = dayStart
-            customEnd = max(dayStart, now)
+            customEnd = max(dayStart, UsageTimeRangePicker.minute(now))
         }
         .onChange(of: state.selectedTrafficCategory) { loadError = nil }
     }

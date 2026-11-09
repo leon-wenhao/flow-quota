@@ -64,7 +64,7 @@ Flow Quota 是面向 macOS 和 Windows 的本地应用流量监测与每日额�
 
 仅在连接热点、或用户明确将当前连接标记为热点时，监测各应用及系统后台进程的流量，按应用执行每日额度、接近额度提醒和超额阻断。所有规则、用量、通知状态均留在本机。
 
-产品是可安装的桌面应用：macOS 入口是顶部菜单栏，Windows 入口是任务栏通知区域（系统托盘）。关闭弹出面板不影响保护服务。第一版不包含历史报表、导出、限速、域名规则、账户、云同步、遥测、广告或自动更新检查。
+产品是可安装的桌面应用：macOS 入口是顶部菜单栏，Windows 入口是任务栏通知区域（系统托盘）。关闭弹出面板不影响保护服务。第一版不包含历史报表、导出、限速、域名规则、账户、云同步、遥测或广告。2026-11-09 起支持默认开启、可关闭的自动版本查询：所有网络类别均检查，启动约 30 秒后首次检查，成功后每 24 小时检查，失败至少间隔 1 小时重试；发现新版仅在界面提示，下载和安装仍需用户主动确认。
 
 建议的首发支持范围：
 
@@ -83,7 +83,7 @@ Windows ARM64、Windows 10 不列入默认首发支持清单；需要时另行�
 - Windows 使用系统托盘图标，悬停提示今日用量和保护状态；点击打开相同信息结构的面板。Windows 首发不承诺在标准托盘图标旁常驻任意用量文字；系统可能将图标收进溢出区域，提供本地操作说明。
 - 使用单色符号变化和可访问名称区分：普通网络、保护中、接近上限、已有应用被阻断、保护异常。不能仅靠颜色区分状态。
 - 点击展开约 420 pt 宽的原生面板，点击外部收起。小屏幕不超过可用宽度；长应用列表使用原生滚动。
-- macOS 采用 MenuBarExtra 的 window 样式；LSUIElement = true，默认不出现在 Dock 和应用切换器中。
+- macOS 使用公开 AppKit `NSStatusItem`：左键打开承载现有 SwiftUI 概览的 `NSPopover`，点击外部收起；右键／双指点按及 Control 点按打开原生 `NSMenu`，提供应用用量、用量图表、预警记录、通用设置、检查更新和退出并停止采集。快捷操作复用既有导航、更新检查和安全退出；菜单关闭及概览关闭均不停止后台轮询。LSUIElement = true，默认不出现在 Dock 和应用切换器中。
 - Windows 采用 WPF 面板与 Windows Forms NotifyIcon 托盘入口，默认不为收起的面板保留任务栏按钮；支持系统缩放、键盘操作及多显示器边缘定位。
 
 ### 2.2 主面板
@@ -167,7 +167,7 @@ Windows 主路线是 Windows Filtering Platform（WFP）：在 ALE 层捕获应�
 | 层级 | 技术 | 职责 |
 | --- | --- | --- |
 | 开发工具 | Xcode、Swift 6，具体版本按稳定工具链锁定 | 构建、签名、调试、测试 |
-| 原生界面 | SwiftUI、MenuBarExtra(.window)，必要处 AppKit、NSWorkspace、SF Symbols | 菜单栏、弹出面板、图标、设置 |
+| 原生界面 | SwiftUI、AppKit NSStatusItem／NSPopover／NSMenu、NSWorkspace、SF Symbols | 菜单栏、弹出面板、图标、设置 |
 | 保护服务 | Swift 本地 LaunchAgent，通过 SMAppService 注册 | 路径状态、SQLite 单写入、通知调度、规则管理、重连恢复 |
 | 网络扩展 | NetworkExtension、NEFilterDataProvider，打包为 System Extension | 应用识别、分块计量、额度扣减、阻断 |
 | 热点检测 | Network.framework、NWPathMonitor；必要时 SystemConfiguration 补充本地接口信息 | 自动信号＋手动标记、切网事件 |
@@ -216,7 +216,7 @@ Windows 首发按单用户日常桌面场景验收，但归因、IPC 和账本�
 
 仅保存 appKey（签名身份／来源身份）、显示名、规则（上限与阈值）、当前日上下行字节、通知状态、规则版本和预算水位。应用身份不能单用 PID，避免进程重启导致重新获得额度。
 
-macOS 数据放在应用专用的本地 Application Support 或经权限设计的本地共享容器；Windows 服务账本放在专用 ProgramData 子目录，按服务身份、管理员和所需客户端能力设置 ACL，按用户 SID 隔离数据，界面偏好留在用户 LocalAppData。两端都不主动放入云盘，不使用 CloudKit。IPC 需验证调用方身份和允许操作，不仅依赖可猜测的端点名称。不采集网址、聊天正文、文件内容或登录凭据，不建立遥测／广告／自动更新网络通路。
+macOS 数据放在应用专用的本地 Application Support 或经权限设计的本地共享容器；Windows 服务账本放在专用 ProgramData 子目录，按服务身份、管理员和所需客户端能力设置 ACL，按用户 SID 隔离数据，界面偏好留在用户 LocalAppData。两端都不主动放入云盘，不使用 CloudKit。IPC 需验证调用方身份和允许操作，不仅依赖可猜测的端点名称。不采集网址、聊天正文、文件内容或登录凭据，不建立遥测或广告网络通路；版本查询仅访问现有 GitHub 更新源。
 
 「不上传」指本产品不传输这些信息；用户自行开启的系统备份、诊断和原有应用的正常联网属于独立系统行为，不能宣传为本产品能禁止的行为。
 
@@ -261,7 +261,7 @@ macOS 数据放在应用专用的本地 Application Support 或经权限设计�
 
 ## 10. 官方依据
 
-- MenuBarExtra：菜单栏常驻及 window 样式，LSUIElement 行为。
+- NSStatusItem／NSPopover／NSMenu：菜单栏左右点击、概览宿主及原生快捷菜单，LSUIElement 行为。
 - NEFilterDataVerdict：分块判定与 drop 当前及后续流数据。
 - NEFilterFlow：来源应用标识、来源应用／进程 audit token。
 - NWPath.isExpensive：个人热点等高成本路径信号。

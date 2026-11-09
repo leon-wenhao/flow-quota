@@ -1,39 +1,17 @@
 import AppKit
 import FlowQuotaCore
-import SwiftUI
 import UserNotifications
 
-@main
-struct FlowQuotaApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    private var state: AppState { delegate.state }
-    @AppStorage("showMenuBarUsage") private var showMenuBarUsage = true
-
-    var body: some Scene {
-        MenuBarExtra {
-            PanelView(state: state, openPreferences: { delegate.preferences.show($0) },
-                      openApplication: { delegate.preferences.showApplication($0) })
-                .appAppearance()
-        } label: {
-            HStack(spacing: 2) {
-                Image(nsImage: BrandIdentity.menuBarImage)
-                    .opacity(state.interfaceUsageAvailable && !state.interfaceUsageIsPreserved ? 1 : 0.55)
-                if showMenuBarUsage { Text(state.menuBarUsageText).monospacedDigit() }
-            }
-            .accessibilityLabel(state.menuBarUsageAccessibilityLabel)
-            .help(state.interfaceMenuHelp)
-        }
-        .menuBarExtraStyle(.window)
-        .commands {
-            CommandGroup(replacing: .appSettings) {
-                Button("偏好设置…") { delegate.preferences.show(.general) }
-                    .keyboardShortcut(",")
-            }
-            CommandGroup(replacing: .appTermination) {
-                Button("退出并停止采集") { state.requestQuit() }
-                    .keyboardShortcut("q")
-            }
-        }
+/// AppKit owns the existing status item and single preferences window. Keeping
+/// an empty SwiftUI Settings scene here creates a second, blank system window.
+@main @MainActor
+enum FlowQuotaApp {
+    static func main() {
+        let application = NSApplication.shared
+        let delegate = AppDelegate()
+        application.delegate = delegate
+        // NSApplication.delegate is weak; retain it throughout the event loop.
+        withExtendedLifetime(delegate) { application.run() }
     }
 }
 
@@ -43,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var monitor = AppMonitor(state: state)
     private let notificationDelegate = ReminderPresentationDelegate()
     lazy var preferences = PreferencesWindowController(state: state)
+    private var statusItem: StatusItemController?
+    private var applicationMenu: ApplicationMenuController?
     private var waitingForStop = false
     private lazy var quitProgress = QuitProgressWindow(state: state)
     private lazy var quit = AppQuitCoordinator(state: state,
@@ -55,7 +35,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if DevelopmentServiceCheck.startIfRequested() { return }
+        let applicationMenu = ApplicationMenuController(
+            openPreferences: { [weak self] in self?.preferences.show(.general) },
+            quit: { [weak self] in self?.state.requestQuit() })
+        self.applicationMenu = applicationMenu
+        NSApplication.shared.mainMenu = applicationMenu.menu
         AppAppearancePreference.selection().apply()
+        statusItem = StatusItemController(state: state,
+            openPreferences: { [weak self] in self?.preferences.show($0) },
+            openApplication: { [weak self] in self?.preferences.showApplication($0) },
+            checkForUpdates: { [weak self] in self?.state.updater.check() },
+            quit: { [weak self] in self?.state.requestQuit() })
         if state.notifications.available {
             UNUserNotificationCenter.current().delegate = notificationDelegate
         }
@@ -113,7 +103,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return alert.runModal() == .alertSecondButtonReturn
     }
 
-    func applicationWillTerminate(_ notification: Notification) { monitor.stop() }
+    func applicationWillTerminate(_ notification: Notification) {
+        statusItem?.stop()
+        monitor.stop()
+    }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 }
