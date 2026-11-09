@@ -600,3 +600,14 @@ arm64及x86_64优化构建、完整应用审计及严格ad-hoc签名检查通过
 移除残留的 `Settings { EmptyView() }`，改由 AppKit 事件循环启动既有 AppDelegate，消除独立空设置窗口的创建入口。新增原生应用菜单控制器，设置菜单／Command-comma 复用现有偏好设置窗口；Command-Q 保持原有停止采集与退出确认路径；标准编辑动作走原生响应链。SwiftUI 页面、状态项、后台轮询、数据与更新交接不作替代实现。
 
 160 项应用测试串行通过，新增 3 项原生菜单／快捷键／单窗口复用回归均使用假服务；arm64 和 x86_64 Release 构建及严格签名审计通过。证据：`.artifacts/settings-window-fix-tests.log`、`.artifacts/settings-window-fix-build-arm64.log`、`.artifacts/settings-window-fix-build-x64.log`。版本保持 0.1.11 / 32，本地 `.app` 已重建；未替换运行中的安装版、未打新 DMG、未推送或发布，未开启真实采样或生成网络实验流量。官方 API 与实际安装后待查范围见 [界面说明](ui-implementation.md) 的对应章节。
+
+
+## 0.1.12 双端发布进度（2026-11-09，部分完成）
+
+正式版本递增为 0.1.12、内部构建 33。源码提交 `d0f59aeeec7516a7e5c55bca2f1cc78a0a72fdd0` 及 `v0.1.12` 已在 GitHub、Gitee 两端回读一致。该提交包含空白设置窗口修复、菜单栏快捷菜单、静默自动检查、Gitee 回退与双端发布工具、自定义分钟输入；更新说明只保留本次实际变化。
+
+复用此前 160 项应用测试；本次 55 项 Python 发布测试通过。该源码重新构建 Apple Silicon／Intel 两个正式 DMG，严格签名、架构和应用内容审计及八附件白名单校验通过。GitHub 0.1.12 已正式发布，八附件上传状态、大小和服务端 SHA-256 均与本地一致；latest 激活预检查通过，但为等待双端完成，latest 仍保持 v0.1.11。草稿创建后列表首次读取短暂未返回，再次使用同一 bundle 完成发布，未重建或覆盖附件。
+
+Gitee 尚无 Release。网页已准备 v0.1.12 标题及相同说明；Chrome 扩展未启用“允许访问文件网址”，文件选择器上传被拒绝，原生选择器也未能确认，六份共用附件未上传。发布机仍无 Release API 凭据。恢复需启用扩展文件访问，或安全配置发布令牌；网页公开发布须按 Computer Use 规则在提交前取得明确确认。附件完成后仍需生成 Gitee 专用签名 feed、验证匿名下载及 DMG 实际摘要，再添加 ready 标记、转正式并激活 GitHub latest。不能将源码同步或 GitHub 已发布声称为国内更新已上线。
+
+本地证据：`.artifacts/release-0.1.12-build.log`、`.artifacts/release-0.1.12-python-tests.log`、`.artifacts/releases/FlowQuota-0.1.12-build-33-publication.json`。安装包继续 ad-hoc、未 Apple 公证；未替换用户当前安装版或更改采集状态，没有热点实验或测速验证。
