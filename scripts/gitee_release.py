@@ -1,16 +1,15 @@
 """Stage/verify/activate one Gitee release without rebuilding any package.
 
 Gitee has no documented draft/latest activation controls. We upload as a
-prerelease, then add a readiness marker and clear prerelease after verification.
-The client ignores every release without this marker.
+prerelease, then clear prerelease after verification. Stable signed appcasts are activated
+separately in the distribution branch; Release prose is never machine state.
 """
 import copy
 import json
 from pathlib import Path
-import re
 import xml.etree.ElementTree as ET
 
-from gitee_api import READY, check_download_url
+from gitee_api import check_download_url
 import sparkle_feed
 from push_sources import verify_gitee_source
 
@@ -42,9 +41,17 @@ def prepare_feeds(bundle, manifest, assets):
         path = directory / name
         if not path.exists():
             # A failed signing attempt must not leave a reusable unsigned feed.
-            temporary = directory / (name + ".tmp")
+            # Sparkle 2.10.1 selects embedded feed signing by .xml suffix.
+            temporary = directory / (name + ".tmp.xml")
             temporary.write_bytes(unsigned)
             sparkle_feed.sign_feed(temporary, sparkle_feed.signer())
+            signed = temporary.read_bytes()
+            signature_match = sparkle_feed.SIGNATURE.search(signed)
+            if not signature_match or signed[:int(signature_match[2])] != unsigned:
+                raise ValueError("Gitee feed signing did not produce the expected signed XML")
+            sparkle_feed.verify_signatures([{
+                "file": str(temporary), "signature": signature_match[1].decode(),
+                "length": int(signature_match[2])}])
             temporary.replace(path)
         data = path.read_bytes()
         match = sparkle_feed.SIGNATURE.search(data)
@@ -76,11 +83,11 @@ class GiteeRelease:
             "tag_name": self.tag, "name": self.manifest["version"], "target_commitish": self.commit,
             "body": (self.bundle / "RELEASE-NOTES.md").read_text(), "prerelease": "true"})
         active = not self.release["prerelease"]
-        expected_body = (self.bundle / "RELEASE-NOTES.md").read_text()
-        if active:
-            expected_body += "\n<!-- flow-quota-ready:{} -->".format(self.manifest["build"])
-        if self.release["name"] != self.manifest["version"] or self.release["body"] != expected_body:
-            raise ValueError("Existing Gitee release identity/notes mismatch; do not overwrite")
+        if (self.release["tag_name"] != self.tag or
+                self.release.get("target_commitish") != self.commit):
+            raise ValueError("Existing Gitee release source/tag mismatch; do not overwrite")
+        # Moderation may mask name/body. RELEASE-NOTES.md is an immutable,
+        # hash-verified attachment; prose is not an activation or identity signal.
         actual = indexed_assets(self.api.assets(self.release["id"]), self.expected_names, active)
         for name, path in self.common.items():
             if name in actual:
@@ -100,7 +107,6 @@ class GiteeRelease:
                 self.api.upload(self.release["id"], path)
         self.files = dict(self.common, **{path.name: path for path in feeds})
         self.verify()
-        self.check_monotonic()
 
     def verify(self):
         if self.release is None or self.files is None:
@@ -110,32 +116,15 @@ class GiteeRelease:
         for name, path in self.files.items():
             self.api.verify_asset(actual[name], path)
 
-    def check_monotonic(self):
-        new_version = tuple(map(int, self.manifest["version"].split(".")))
-        for release in self.api.releases():
-            match = READY.search(release["body"])
-            if release["prerelease"] or not match:
-                continue
-            if not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", release["tag_name"]):
-                raise ValueError("Activated Gitee release has invalid tag")
-            old_version = tuple(map(int, release["tag_name"][1:].split(".")))
-            old_build = int(match[1])
-            if release["tag_name"] == self.tag:
-                if old_build != self.manifest["build"]:
-                    raise ValueError("Immutable Gitee version has a different build")
-            elif old_version >= new_version or old_build >= self.manifest["build"]:
-                raise ValueError("Refusing Gitee version/build rollback")
-
     def activate(self):
+        """Make verified attachments formal; fixed feed activation happens later."""
         self.verify()
-        self.check_monotonic()
-        fields = {"tag_name": self.tag, "name": self.manifest["version"], "prerelease": "false",
-                  "body": (self.bundle / "RELEASE-NOTES.md").read_text() +
-                          "\n<!-- flow-quota-ready:{} -->".format(self.manifest["build"])}
         if self.release["prerelease"]:
-            self.api.write("/releases/" + str(self.release["id"]), fields, "PATCH")
-        # Public, no-token readback also covers "PATCH succeeded, response lost" retries.
+            self.api.write("/releases/" + str(self.release["id"]), {
+                "tag_name": self.tag, "name": self.manifest["version"], "prerelease": "false"}, "PATCH")
+        # Public readback covers PATCH success followed by a lost response.
         published = [r for r in self.api.releases() if r["tag_name"] == self.tag]
-        if len(published) != 1 or any(published[0][key] != (False if key == "prerelease" else value)
-                                      for key, value in fields.items()):
-            raise ValueError("Gitee activation readback failed; rerun verification")
+        if (len(published) != 1 or published[0]["prerelease"] or
+                published[0].get("target_commitish") != self.commit):
+            raise ValueError("Gitee formal release readback failed; rerun verification")
+        self.release = published[0]

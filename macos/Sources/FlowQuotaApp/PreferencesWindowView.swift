@@ -7,7 +7,7 @@ struct PreferencesWindowView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar
+            PreferencesSidebar(navigation: navigation, version: state.updater.currentVersion)
             Divider()
             VStack(spacing: 0) {
                 toolbar
@@ -24,42 +24,9 @@ struct PreferencesWindowView: View {
         .onChange(of: state.selectedTrafficCategory) { _, _ in navigation.application = nil }
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                FlowQuotaAppIcon().frame(width: 28, height: 28)
-                Text("Flow Quota").font(.headline)
-            }
-            .padding(.bottom, 18).padding(.horizontal, 8)
-            ForEach(PreferencesNavigation.Page.allCases) { page in
-                Button { navigation.select(page) } label: {
-                    Label(page.title, systemImage: page.symbol)
-                        .font(.subheadline.weight(navigation.page == page ? .semibold : .regular))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 11).padding(.vertical, 10)
-                        .contentShape(RoundedRectangle(cornerRadius: 7))
-                }
-                .buttonStyle(FlowQuotaRowButtonStyle())
-                .background(navigation.page == page ? FlowQuotaTheme.accent.opacity(0.13) : .clear,
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(alignment: .leading) {
-                    if navigation.page == page {
-                        Capsule().fill(FlowQuotaTheme.accent).frame(width: 3, height: 20).padding(.leading, 2)
-                    }
-                }
-                .accessibilityAddTraits(navigation.page == page ? .isSelected : [])
-            }
-            Spacer()
-            Text("用量与配置仅保存在本机")
-                .font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 8)
-        }
-        .padding(14).padding(.top, 14).frame(width: 184)
-        .background(.regularMaterial)
-    }
-
     private var toolbar: some View {
         HStack(spacing: 16) {
-            if navigation.page != .general && navigation.page != .help {
+            if navigation.page != .general && navigation.page != .help && navigation.page != .about {
                 TrafficCategorySelection(state: state)
                     .frame(maxWidth: .infinity)
             } else {
@@ -118,6 +85,7 @@ struct PreferencesWindowView: View {
         case .reminders: ReminderSettingsView(state: state).id(state.selectedTrafficCategory)
         case .history: TrafficAlertHistoryView(state: state).id(state.selectedTrafficCategory)
         case .general: SettingsView(state: state)
+        case .about: AboutView(state: state)
         case .help:
             SetupView(state: state) {
                 hasReadLocalSetup = true

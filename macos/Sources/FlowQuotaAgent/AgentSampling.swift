@@ -100,6 +100,7 @@ extension AgentRuntime {
         if let category = path.state.trafficCategory {
             try await store.recordSample(day: day, increments: increments, category: category,
                 applicationObservedAt: frame.capturedAt, observedApplicationKeys: result.observedSourceKeys)
+            invalidateReconciledTraffic(category)
             sampledAtByCategory[category] = frame.capturedAt
         }
         guard generation == samplingGeneration else { return }

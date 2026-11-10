@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await state.updater.start(canPrepare: { [weak self] in self?.state.busy == false },
                 suspend: { [weak self] in self?.monitor.stop() },
                 resume: { [weak self] in self?.monitor.start() },
-                showRecovery: { [weak self] in self?.preferences.show(.general) })
+                showRecovery: { [weak self] in self?.preferences.show(.about) })
             monitor.start()
         }
         guard ProcessInfo.processInfo.arguments.contains("--window") else { return }
@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if state.updater.installing || state.updater.recovering || state.updater.needsRecovery {
             let alert = NSAlert()
             alert.messageText = "更新交接尚未完成"
-            alert.informativeText = state.updater.errorMessage ?? "请等待安装准备完成，或到软件更新中恢复服务状态。"
+            alert.informativeText = state.updater.errorMessage ?? "请等待安装准备完成，或到“关于”页恢复服务状态。"
             alert.runModal()
             return .terminateCancel
         }
@@ -77,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor [self] in
                 let allowed = await state.updater.prepareForTermination()
                 waitingForStop = false
-                if !allowed { preferences.show(.general) }
+                if !allowed { preferences.show(.about) }
                 sender.reply(toApplicationShouldTerminate: allowed)
             }
             return .terminateLater

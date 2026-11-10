@@ -68,6 +68,7 @@ extension AgentRuntime {
         var breakdown: ClashUsageBreakdown?
         var sourceError: String?
         var sourceObservations: [ClashUsageSource]?
+        let reconciledResult = await reconciledTraffic(for: day, category: category)
         do {
             breakdown = try await store.dailyClashBreakdown(day: day, category: category)
             sourceObservations = try await store.dailyClashObservations(day: day, category: category)
@@ -87,7 +88,8 @@ extension AgentRuntime {
             trafficAlertPolicy: policy, trafficAlertEvents: events, interfaceUsageMinutes: minutes,
             mihomoProxy: mihomoAccumulator.snapshot(category: category, day: day,
                 status: mihomoProxy.status, message: mihomoProxy.message), clashBreakdown: breakdown,
-            clashSourceError: sourceError, clashSourceObservations: sourceObservations)
+            clashSourceError: sourceError, clashSourceObservations: sourceObservations,
+            reconciledTraffic: reconciledResult.0, reconciledTrafficError: reconciledResult.1)
     }
 
     private func currentDaySample(_ date: Date?, day: String) -> Date? {

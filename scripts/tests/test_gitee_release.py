@@ -20,6 +20,9 @@ SIGNATURE = base64.b64encode(bytes(64)).decode()
 
 
 def sign_feed(path, tool):
+    # Match Sparkle 2.10.1's filename-based choice of embedded signing mode.
+    if path.suffix != ".xml":
+        return
     data = path.read_bytes()
     path.write_bytes(data + ("<!-- sparkle-signatures:\nedSignature: " + SIGNATURE +
                             "\nlength: " + str(len(data)) + "\n-->\n").encode())
@@ -34,7 +37,9 @@ class FakeGitee:
         return copy.deepcopy(self.records)
 
     def write(self, path, fields, method="POST"):
-        record = dict(fields, prerelease=fields["prerelease"] == "true", id=1)
+        previous = self.records[0] if self.records and method == "PATCH" else {}
+        record = dict(previous, **fields)
+        record.update(prerelease=fields["prerelease"] == "true", id=1)
         self.records = [record]
         return copy.deepcopy(record)
 
@@ -102,17 +107,36 @@ class GiteeReleaseTests(unittest.TestCase):
         self.assertEqual(len(self.api.attachments), 8)
         mirror.activate()
         self.assertFalse(self.api.records[0]["prerelease"])
-        self.assertIn("<!-- flow-quota-ready:33 -->", self.api.records[0]["body"])
+        self.assertNotIn("flow-quota-ready", self.api.records[0]["body"])
         count = len(self.api.uploads)
         self.mirror().stage()
         self.assertEqual(len(self.api.uploads), count)
+
+    def test_unsigned_signer_output_is_not_promoted_to_reusable_feed(self):
+        with mock.patch.object(sparkle_feed, "sign_feed", return_value=None):
+            with self.assertRaisesRegex(ValueError, "expected signed XML"):
+                self.mirror().stage()
+        directory = self.bundle.parent / "bundle-gitee"
+        self.assertFalse((directory / "appcast-arm64.xml").exists())
+        self.assertNotIn("appcast-arm64.xml", self.api.uploads)
+        self.mirror().stage()
+        self.assertEqual(len(self.api.attachments), 8)
+
+    def test_invalid_signature_is_not_promoted_to_reusable_feed(self):
+        with mock.patch.object(sparkle_feed, "verify_signatures", side_effect=ValueError("bad signature")):
+            with self.assertRaisesRegex(ValueError, "bad signature"):
+                self.mirror().stage()
+        directory = self.bundle.parent / "bundle-gitee"
+        self.assertFalse((directory / "appcast-arm64.xml").exists())
+        self.assertNotIn("appcast-arm64.xml", self.api.uploads)
+        self.mirror().stage()
+        self.assertEqual(len(self.api.attachments), 8)
 
     def test_interrupted_stage_resumes_missing_only_without_activating(self):
         self.api.fail_name = "appcast-x86_64.xml"
         with self.assertRaisesRegex(ValueError, "upload failure"):
             self.mirror().stage()
         self.assertTrue(self.api.records[0]["prerelease"])
-        self.assertNotIn("flow-quota-ready", self.api.records[0]["body"])
         self.api.fail_name = None
         self.mirror().stage()
         self.assertEqual(len(self.api.uploads), 8)
@@ -132,14 +156,21 @@ class GiteeReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "tag mismatch"):
             self.mirror().stage()
 
-    def test_rollback_and_same_version_rebuild_are_rejected(self):
+    def test_moderated_release_prose_does_not_block_verified_attachments(self):
         mirror = self.mirror()
         mirror.stage()
-        for tag, build in [("v0.1.13", 34), ("v0.1.10", 33), ("v0.1.12", 34)]:
-            self.api.records = [{"id": 8, "tag_name": tag, "prerelease": False,
-                "body": "<!-- flow-quota-ready:{} -->".format(build)}]
-            with self.assertRaises(ValueError):
-                mirror.check_monotonic()
+        self.api.records[0].update(name="release_1", body="内容可能含有违规信息")
+        mirror = self.mirror()
+        mirror.stage()
+        mirror.activate()
+        self.assertFalse(self.api.records[0]["prerelease"])
+        self.assertEqual(self.api.records[0]["body"], "内容可能含有违规信息")
+
+    def test_release_source_mismatch_is_not_masked_by_valid_attachments(self):
+        self.mirror().stage()
+        self.api.records[0]["target_commitish"] = "b" * 40
+        with self.assertRaisesRegex(ValueError, "source/tag mismatch"):
+            self.mirror().stage()
 
     def test_local_feed_tampering_is_rejected(self):
         self.mirror().stage()
@@ -172,6 +203,8 @@ class DualPublisherTests(unittest.TestCase):
             "git": mock.Mock(return_value=""), "push": mock.Mock(side_effect=lambda _: self.events.append("sources")),
             "publish": mock.Mock(side_effect=lambda *a: self.events.append("github-published")),
             "activate_manifest": mock.Mock(side_effect=lambda *a, **kw: self.events.append("github-preflight" if kw else "github-active")),
+            "publish_feeds": mock.Mock(side_effect=lambda *a, **kw:
+                self.events.append("feeds-preflight" if kw else "feeds-active")),
             "GiteeAPI": mock.Mock(), "GiteeRelease": mock.Mock()}
         for name, value in replacements.items():
             patcher = mock.patch.object(publish_dual, name, value)
@@ -183,7 +216,7 @@ class DualPublisherTests(unittest.TestCase):
 
     def test_activate_only_after_both_verified_and_github_rollback_preflight(self):
         publish_dual.publish_dual(self.bundle, True)
-        self.assertEqual(self.events, ["sources", "github-published", "gitee-verified", "github-preflight", "gitee-active", "github-active"])
+        self.assertEqual(self.events, ["sources", "github-published", "gitee-verified", "github-preflight", "feeds-preflight", "gitee-active", "feeds-active", "github-active"])
 
     def test_partial_publication_receipt_and_no_activation_on_gitee_failure(self):
         self.mirror.stage.side_effect = ValueError("upload failed")
@@ -211,6 +244,17 @@ class DualPublisherTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             publish_dual.publish_dual(self.bundle, True)
         self.mirror.activate.assert_not_called()
+
+    def test_raw_feed_readback_failure_preserves_partial_state_and_skips_github_latest(self):
+        self.publish_feeds.side_effect = [None, ValueError("raw unavailable")]
+        with self.assertRaisesRegex(ValueError, "raw unavailable"):
+            publish_dual.publish_dual(self.bundle, True)
+        state = json.loads((self.bundle.parent / "bundle-publication.json").read_text())
+        self.assertTrue(state["giteeFormal"])
+        self.assertFalse(state["giteeActivated"])
+        self.assertFalse(state["githubActivated"])
+        self.activate_manifest.assert_called_once_with(self.bundle.resolve(), publish_dual.PUBLIC_REPO,
+                                                      "v0.1.12", dry_run=True)
 
     def test_source_sync_failure_cannot_publish_either_release(self):
         self.push.side_effect = ValueError("partial source sync")

@@ -603,3 +603,13 @@ PanelView 移除应用添加的 18 点圆角裁切，将 material 背景和细�
 - https://developer.apple.com/documentation/appkit/nsapplication/run()
 - https://developer.apple.com/documentation/appkit/nsapplication/delegate
 - https://developer.apple.com/documentation/appkit/nsapplication/mainmenu
+
+## 关于页与侧栏图标（2026-11-10）
+
+偏好设置新增“关于”页，应用标志复用 `FlowQuotaAppIcon`，版本取现有 `AppUpdater.currentVersion`，仅显示三段版本号，不显示内部构建号。项目入口固定为 GitHub `leon-wenhao/flow-quota`、Gitee `Leon-wh/flow-quota`、GitHub Issues 和 Releases；只有用户点击原生 `Link` 才交给系统打开，不预取项目页面或增加后台查询。检查更新调用同一 `AppUpdater.check()`，沿用可用性、禁用条件和可见错误；自动检查开关及安装恢复操作继续位于通用设置。关于页保留 MIT、本机数据留存和 ad-hoc／未公证说明，不宣称国内应用内更新已完成验收。
+
+`PreferencesSidebar` 单独管理导航展示，以 30 pt 彩色 SF Symbols 底板统一图标尺寸，复用共享整行按钮样式、悬停／按压反馈和整行点击范围，选中项使用系统强调色与无障碍选中标记。侧栏导航可滚动，避免新增入口在最小窗口中挤出可见区域；通用设置、使用说明与关于位于分隔后的工具区。侧栏品牌与关于页仍使用现有矢量标志，没有另改安装包或菜单栏图标。关于内容随可用宽度布局，遵循原生外观，不新增依赖、采集、数据库或权限入口。
+
+官方依据：Apple SwiftUI `Link`（https://developer.apple.com/documentation/swiftui/link）负责外部链接；`ViewThatFits`（https://developer.apple.com/documentation/swiftui/viewthatfits）按可用空间选择布局，macOS 13 起可用，满足项目 macOS 14 下限；HIG Sidebars（https://developer.apple.com/design/human-interface-guidelines/sidebars）用于导航层级、图标与文字对齐参考。工具链为 Swift tools 6.0／Swift 6 模式，Sparkle 固定 2.10.1；本机 Swift 6.4.2、macOS SDK 27.2。
+
+验证：`./scripts/build-macos.sh --debug` 完成主应用、服务编译及 ad-hoc 严格签名核验；现有偏好窗口复用／关闭不停止服务、导航清除应用编辑状态两项测试通过（含暂停与采集两种模拟服务状态）。独立原生渲染工具直接载入实际 `PreferencesWindowView`，检查 1040×800 浅色／深色和 820×620 最小尺寸；工具未启动 AppDelegate、后台轮询、更新检查或采集服务。链接使用官方 `Link` API，未触发外部页面或下载；本轮未进行真实流量或完整更新安装验收。仅生成本地开发包，未安装或发布。

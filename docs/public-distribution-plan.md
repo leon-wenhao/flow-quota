@@ -7,7 +7,7 @@
 - `leon-wenhao/flow-quota` 改为公开，统一管理源码、文档、Issues、tag 和 Releases，使用 MIT 许可证。
 - DMG 只作为 Release 附件；`.artifacts/` 继续忽略，不把二进制提交进 Git。
 - 现阶段没有旧版使用者，无需旧更新入口、重定向或过渡期。新入口验收后删除 `leon-wenhao/flow-quota-releases`。
-- 2026-11-09 起支持可关闭的自动版本查询，所有网络类别均检查，仅在界面提示，下载与安装仍需用户主动确认；新版本使用本仓库 latest Release 的架构独立 Sparkle appcast 附件，旧 JSON 附件继续服务 0.1.5 客户端。对外使用三段版本号，唯一 tag 为 `v版本`（如 `v0.1.4`），不带 build 后缀；内部递增构建号仅保存在应用元数据和更新清单中。
+- 2026-11-09 起支持可关闭的自动版本查询，所有网络类别均检查，仅在界面提示，下载与安装仍需用户主动确认；GitHub 使用本仓库 latest Release 的架构独立 Sparkle appcast 附件，Gitee 备用源使用 `codex/update-feeds` 分支的固定签名清单，旧 JSON 附件继续服务 0.1.5 客户端。对外使用三段版本号，唯一 tag 为 `v版本`（如 `v0.1.4`），不带 build 后缀；内部递增构建号仅保存在应用元数据和更新清单中。
 
 ## 执行顺序
 
@@ -22,7 +22,7 @@
 
 - `main` 保存可发布源码；日常修改使用 `codex/功能名` 分支并通过审查合入。
 - tag 指向实际构建源码，不复用、不改写已发布 tag；重新发布必须递增版本号和内部构建号。
-- 本地根 `update-manifest.json` 是构建输入，latest Release 附件才是已验证的在线清单，避免先改版本号就让客户端发现尚未上传的包。
+- 本地根 `update-manifest.json` 是构建输入，GitHub latest Release 附件及 Gitee 已激活的固定签名文件才是在线清单，避免先改版本号就让客户端发现尚未上传的包。
 - 不新增 CI 或额外服务器；应用内版本检查复用现有后台循环，首次安装使用 DMG，后续按 [应用内更新方案](in-app-updates.md) 在用户确认后校验、替换并重启。
 
 ## 验收与限制

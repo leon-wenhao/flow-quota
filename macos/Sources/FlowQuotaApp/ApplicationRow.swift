@@ -4,6 +4,7 @@ import SwiftUI
 struct ApplicationRow: View {
     let application: ApplicationSnapshot
     let usage: Int64?
+    var thresholdUsage: Int64? = nil
     var compact = false
     let edit: () -> Void
 
@@ -13,16 +14,18 @@ struct ApplicationRow: View {
         case .sharedDownload, .sharedProxy: return "共享服务 · 原始请求方未确认"
         default: break
         }
-        guard let usage else { return "用量未知" }
+        guard usage != nil else { return "用量未知" }
+        let ruleUsage = thresholdUsage ?? application.usage.totalBytes
         guard let rule = application.rule, let limit = rule.limitBytes else { return "未设每日提醒" }
-        if usage >= limit { return "已达提醒阈值" }
-        if Double(usage) / Double(limit) >= Double(rule.warningPercent) / 100 { return "接近提醒阈值" }
+        if ruleUsage >= limit { return "已达提醒阈值" }
+        if Double(ruleUsage) / Double(limit) >= Double(rule.warningPercent) / 100 { return "接近提醒阈值" }
         return "未达提醒阈值"
     }
     private var symbol: String {
-        guard let usage, let rule = application.rule, let limit = rule.limitBytes else { return "app" }
-        if usage >= limit { return "exclamationmark.octagon" }
-        if Double(usage) / Double(limit) >= Double(rule.warningPercent) / 100 { return "exclamationmark.triangle" }
+        guard usage != nil, let rule = application.rule, let limit = rule.limitBytes else { return "app" }
+        let ruleUsage = thresholdUsage ?? application.usage.totalBytes
+        if ruleUsage >= limit { return "exclamationmark.octagon" }
+        if Double(ruleUsage) / Double(limit) >= Double(rule.warningPercent) / 100 { return "exclamationmark.triangle" }
         return "app"
     }
 

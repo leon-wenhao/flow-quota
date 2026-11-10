@@ -44,6 +44,7 @@ extension AgentRuntime {
                 category: path.state.trafficCategory, uptime: uptime)
             if let category = path.state.trafficCategory {
                 try await store.recordClashSources(next.sourceIncrements, at: capturedAt, category: category)
+                invalidateReconciledTraffic(category)
             }
             // Storage may suspend this actor; do not accept a response after pause/path change.
             guard generation == samplingGeneration, try mihomoScope(path: observeNetwork(), at: capturedAt) == scope else {

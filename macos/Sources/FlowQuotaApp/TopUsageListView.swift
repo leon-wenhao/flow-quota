@@ -19,7 +19,7 @@ struct TopUsageListView: View {
             HStack {
                 Text("用量前三").font(.caption.weight(.semibold))
                 Spacer()
-                Text("按流量消耗排序").font(.caption2).foregroundStyle(.secondary)
+                Text("接口总量内的已核对来源").font(.caption2).foregroundStyle(.secondary)
             }
             if items.isEmpty {
                 Text(emptyMessage).font(.caption).foregroundStyle(.secondary)
@@ -33,20 +33,24 @@ struct TopUsageListView: View {
                                 .accessibilityLabel("第 \(index + 1) 名")
                             switch item {
                             case .application(let application, let bytes):
-                                ApplicationRow(application: application, usage: bytes, compact: true) {
+                                ApplicationRow(application: application, usage: bytes, thresholdUsage: state.knownUsage(application), compact: true) {
                                     openApplication(application)
                                 }
                             case .clash(let source, let bytes):
                                 ClashSourceRow(source: source, usage: bytes,
                                     status: state.categoryMihomoProxy?.status ?? .unavailable, compact: true)
+                            case .unidentified(let source):
+                                UnidentifiedTrafficRow(source: source, compact: true)
                             }
                         }
                     }
                 }
             }
             Spacer(minLength: 0)
-            Text("完整来源见应用用量")
-                .font(.caption2).foregroundStyle(.secondary)
+            Text(state.trafficBreakdownError == nil ? "未识别余量与原始证据见计量详情" : "来源核对失败 · 详情见计量详情")
+                .font(.caption2).foregroundStyle(
+                    state.trafficBreakdownError == nil ? Color.secondary : Color.orange
+                )
         }
         .frame(height: 148, alignment: .top)
         .transaction { $0.animation = nil }

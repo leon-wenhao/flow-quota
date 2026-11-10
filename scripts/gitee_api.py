@@ -16,7 +16,6 @@ import uuid
 
 REPO = "Leon-wh/flow-quota"
 BASE = "https://gitee.com/api/v5/repos/" + REPO
-READY = re.compile(r"<!-- flow-quota-ready:([1-9][0-9]*) -->")
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):

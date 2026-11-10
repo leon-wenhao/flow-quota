@@ -42,6 +42,8 @@ actor AgentRuntime {
     var mihomoTask: Task<Void, Never>?
     var mihomoAccumulator = MihomoProxyAccumulator()
     var mihomoProxy = MihomoProxySnapshot(status: .paused, message: "Mihomo API 观测尚未启动。")
+    var reconciledTrafficCache: [TrafficCategory: ReconciledTrafficBreakdown] = [:]
+    var reconciledTrafficErrors: [TrafficCategory: String] = [:]
 
     init(store: QuotaStore,
          interfaceReader: any InterfaceCounterReading = SystemInterfaceTrafficCounter(),
@@ -132,6 +134,25 @@ actor AgentRuntime {
             await stopMonitoring()
             return .acknowledged
         }
+    }
+
+    func reconciledTraffic(for day: String, category: TrafficCategory) async -> (ReconciledTrafficBreakdown?, String?) {
+        if let cached = reconciledTrafficCache[category] { return (cached, nil) }
+        if let error = reconciledTrafficErrors[category] { return (nil, error) }
+        do {
+            let breakdown = try await store.dailyReconciledTrafficBreakdown(day: day, category: category)
+            if let breakdown { reconciledTrafficCache[category] = breakdown }
+            return (breakdown, nil)
+        } catch {
+            let message = error.localizedDescription
+            reconciledTrafficErrors[category] = message
+            return (nil, message)
+        }
+    }
+
+    func invalidateReconciledTraffic(_ category: TrafficCategory) {
+        reconciledTrafficCache.removeValue(forKey: category)
+        reconciledTrafficErrors.removeValue(forKey: category)
     }
 
 }

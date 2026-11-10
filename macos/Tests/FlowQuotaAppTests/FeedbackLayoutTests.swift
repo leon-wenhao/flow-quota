@@ -96,7 +96,8 @@ private struct FeedbackScrollGeometry: Equatable {
 
 @MainActor private func findScrollView(_ view: NSView) -> NSScrollView? {
     if let scroll = view as? NSScrollView { return scroll }
-    return view.subviews.lazy.compactMap { findScrollView($0) }.first
+    // The sidebar now scrolls independently; measure the wider page viewport.
+    return view.subviews.compactMap { findScrollView($0) }.max { $0.frame.width < $1.frame.width }
 }
 
 @MainActor private func settleFeedbackLayout(_ host: NSView) async {

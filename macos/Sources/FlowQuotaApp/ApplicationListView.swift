@@ -21,6 +21,13 @@ struct ApplicationListView: View {
                 Text(failure).font(.caption2).foregroundStyle(.orange)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 8)
             }
+            if let error = state.trafficBreakdownError {
+                Text("来源核对失败：\(error)").font(.caption2).foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 8)
+            } else if let notice = state.trafficBreakdownNotice {
+                Text(notice).font(.caption2).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 8)
+            }
             DailyTrafficOverview(state: state)
             Divider()
             ScrollView {
@@ -35,10 +42,12 @@ struct ApplicationListView: View {
                     ForEach(order.ordered(state.applicationUsageItems)) { item in
                         switch item {
                         case .application(let application, let usage):
-                            ApplicationRow(application: application, usage: usage) { edit(application) }
+                            ApplicationRow(application: application, usage: usage, thresholdUsage: state.knownUsage(application)) { edit(application) }
                         case .clash(let source, let usage):
                             ClashSourceRow(source: source, usage: usage,
                                 status: state.categoryMihomoProxy?.status ?? .unavailable)
+                        case .unidentified(let source):
+                            UnidentifiedTrafficRow(source: source)
                         }
                         Divider()
                     }

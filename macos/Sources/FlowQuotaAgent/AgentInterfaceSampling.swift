@@ -67,6 +67,7 @@ extension AgentRuntime {
                 InterfaceUsage(day: day, uploadedBytes: delta.uploadedBytes,
                                downloadedBytes: delta.downloadedBytes), category: category,
                 interfaceObservedAt: delta.rebaselined ? nil : now)
+            invalidateReconciledTraffic(category)
             guard generation == samplingGeneration else { return }
             guard observeNetwork().generation == path.generation else {
                 interfaceAccumulator.reset()

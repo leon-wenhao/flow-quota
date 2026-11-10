@@ -7,6 +7,22 @@ extension QuotaStore {
         let start = try StoreDay.milliseconds(query.start)
         let end = try StoreDay.milliseconds(query.end)
         // A single-application request remains raw evidence for its rule/details.
+        if query.appKey == nil {
+            let parents = try interfaceUsageMinutes(day: query.day, category: query.category).filter {
+                $0.minuteStartMilliseconds >= start && $0.minuteStartMilliseconds < end
+            }
+            if !parents.isEmpty {
+                let children = try clashMinuteRows(day: query.day, category: query.category, start: start, end: end)
+                let resolved = try ReconciledTrafficBreakdown.resolveMinutes(interfaceMinutes: parents,
+                    processMinutes: raw, clashMinutes: children)
+                let grouped = try ClashMinuteBreakdown.group(resolved.rows, start: start,
+                    step: Int64(query.bucketMinutes) * 60_000)
+                let timeline = try ApplicationTimelineGrouping.make(query: query, rows: grouped,
+                    clashNotice: resolved.notice)
+                return ApplicationUsageTimeline(query: query, bucketMinutes: timeline.bucketMinutes,
+                    buckets: timeline.buckets, clashNotice: timeline.clashNotice, sourcesResolved: true)
+            }
+        }
         let children = query.appKey == nil ? try clashMinuteRows(day: query.day, category: query.category, start: start, end: end) : []
         let result = query.appKey == nil ? try ClashMinuteBreakdown.resolve(processes: raw, sources: children) : (rows: raw, notice: nil)
         let grouped = try ClashMinuteBreakdown.group(result.rows, start: start, step: Int64(query.bucketMinutes) * 60_000)
@@ -39,5 +55,23 @@ extension QuotaStore {
         let breakdown = try ClashUsageBreakdown.split(upload: upload, download: download,
             sources: apps.count == 1 ? accepted : [])
         return ClashUsageBreakdown(sources: breakdown.sources, notice: result.notice ?? breakdown.notice)
+    }
+}
+
+extension QuotaStore {
+    /// Builds the current-day display sources from minute-aligned parent and source
+    /// evidence. Raw application totals remain the rule and alert ledger.
+    public func dailyReconciledTrafficBreakdown(day: String, category: TrafficCategory) throws -> ReconciledTrafficBreakdown? {
+        let interfaceMinutes = try interfaceUsageMinutes(day: day, category: category)
+        guard !interfaceMinutes.isEmpty else { return nil }
+        let start = calendar.startOfDay(for: clock())
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else {
+            throw ClashBreakdownError.invalid
+        }
+        let query = ApplicationTimelineQuery(day: day, category: category, start: start, end: end)
+        let processMinutes = try applicationTimelineRows(query, bucketMinutes: 1)
+        let clashMinutes = try clashMinuteRows(day: day, category: category)
+        return try ReconciledTrafficBreakdown.resolve(interfaceMinutes: interfaceMinutes,
+            processMinutes: processMinutes, clashMinutes: clashMinutes)
     }
 }

@@ -49,6 +49,8 @@ extension AgentRuntime {
                 sampledAt = nil
                 sampledAtByCategory = [:]
                 interfaceSampledAt = nil
+                reconciledTrafficCache.removeAll()
+                reconciledTrafficErrors.removeAll()
             }
             lastPrunedDay = day
             retentionError = nil

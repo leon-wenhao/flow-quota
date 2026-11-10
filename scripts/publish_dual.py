@@ -10,6 +10,7 @@ import subprocess
 
 from gitee_api import GiteeAPI, credential
 from gitee_release import GiteeRelease
+from gitee_feeds import publish_feeds
 from public_repository import PUBLIC_REPO, check_repositories
 from publish_macos import activate_manifest, publish
 from release_bundle import validate_bundle
@@ -38,7 +39,7 @@ def publish_dual(bundle, activate=False):
     receipt = bundle.parent / (bundle.name + "-publication.json")
     state = {"version": manifest["version"], "build": manifest["build"], "sourceCommit": commit,
              "sourceSynced": False, "githubPublished": False, "giteeVerified": False,
-             "giteeActivated": False, "githubActivated": False}
+             "giteeFormal": False, "giteeActivated": False, "githubActivated": False}
 
     def save():
         temporary = receipt.with_suffix(".tmp")
@@ -60,7 +61,11 @@ def publish_dual(bundle, activate=False):
         if activate:
             # Check GitHub rollback/build rules before activating either host.
             activate_manifest(bundle, PUBLIC_REPO, tag, dry_run=True)
+            publish_feeds(bundle, manifest, dry_run=True)
             mirror.activate()
+            state["giteeFormal"] = True
+            save()
+            publish_feeds(bundle, manifest)
             state["giteeActivated"] = True
             save()
             activate_manifest(bundle, PUBLIC_REPO, tag)

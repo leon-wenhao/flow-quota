@@ -5,7 +5,7 @@ import Observation
 @MainActor @Observable
 final class PreferencesNavigation {
     enum Page: String, CaseIterable, Identifiable {
-        case applications, charts, details, reminders, history, general, help
+        case applications, charts, details, reminders, history, general, help, about
         var id: Self { self }
         var title: String {
             switch self {
@@ -16,17 +16,19 @@ final class PreferencesNavigation {
             case .history: "预警记录"
             case .general: "通用设置"
             case .help: "使用说明"
+            case .about: "关于"
             }
         }
         var symbol: String {
             switch self {
-            case .applications: "square.grid.2x2"
-            case .charts: "chart.pie"
+            case .applications: "square.grid.2x2.fill"
+            case .charts: "chart.pie.fill"
             case .details: "network"
-            case .reminders: "bell"
+            case .reminders: "bell.badge.fill"
             case .history: "clock.arrow.circlepath"
-            case .general: "gearshape"
-            case .help: "questionmark.circle"
+            case .general: "gearshape.fill"
+            case .help: "questionmark.circle.fill"
+            case .about: "info.circle.fill"
             }
         }
     }

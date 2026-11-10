@@ -36,35 +36,18 @@ import Testing
     #expect(!route.probing)
 }
 
-private func release(_ id: Int, _ build: Int, prerelease: Bool = false) -> [String: Any] {
-    ["id": id, "tag_name": "v0.1.\(id)", "prerelease": prerelease,
-     "body": "notes\n<!-- flow-quota-ready:\(build) -->"]
+@Test(arguments: ["arm64", "x86_64"])
+func giteeFeedUsesFixedArchitectureFileWithoutReleaseMetadata(architecture: String) async throws {
+    let url = try await GiteeUpdateFeed.resolve(architecture: architecture)
+    #expect(url.absoluteString == "https://gitee.com/Leon-wh/flow-quota/raw/codex/update-feeds/updates/appcast-\(architecture).xml")
+    #expect(url.scheme == "https" && url.host == "gitee.com")
+    #expect(url.query == nil && url.fragment == nil && url.user == nil)
 }
 
-@Test func giteeSelectsHighestReadyBuildRatherThanMostRecentlyModifiedRelease() async throws {
-    let releases = try JSONSerialization.data(withJSONObject: [release(1, 31), release(3, 33), release(4, 34, prerelease: true)])
-    let assets = Data(#"[{"name":"appcast-arm64.xml","browser_download_url":"https://gitee.com/Leon-wh/flow-quota/releases/download/v0.1.3/appcast-arm64.xml"}]"#.utf8)
-    let url = try await GiteeUpdateFeed.resolve(architecture: "arm64") { url in
-        if url.path.hasSuffix("/releases") { return releases }
-        #expect(url.path.hasSuffix("/releases/3/attach_files"))
-        return assets
-    }
-    #expect(url.host == "gitee.com")
-}
-
-@Test func giteeRejectsUnactivatedMissingDuplicateAndForeignFeeds() async throws {
-    for assets in ["[]", #"[{"name":"appcast-arm64.xml","browser_download_url":"https://github.com/feed"}]"#,
-                   #"[{"name":"appcast-arm64.xml","browser_download_url":"https://gitee.com/feed?access_token=secret"}]"#,
-                   #"[{"name":"appcast-arm64.xml","browser_download_url":"http://gitee.com/feed"}]"#] {
-        let releases = try JSONSerialization.data(withJSONObject: [release(2, 32)])
-        await #expect(throws: (any Error).self) {
-            _ = try await GiteeUpdateFeed.resolve(architecture: "arm64") { url in
-                url.path.hasSuffix("/releases") ? releases : Data(assets.utf8)
-            }
-        }
-    }
+@Test(arguments: ["", "amd64", "../arm64", "arm64?access_token=secret"])
+func giteeFeedRejectsUnsupportedArchitecture(architecture: String) async {
     await #expect(throws: (any Error).self) {
-        _ = try await GiteeUpdateFeed.resolve { _ in Data("[]".utf8) }
+        _ = try await GiteeUpdateFeed.resolve(architecture: architecture)
     }
 }
 
@@ -97,17 +80,4 @@ private func release(_ id: Int, _ build: Int, prerelease: Bool = false) -> [Stri
     app.updater(sparkle, didFinishUpdateCycleFor: .updateInformation, error: noUpdate)
     #expect(!app.checking && app.automaticChecks.lastSuccess != nil)
     #expect(!app.installing && !app.recovering && !app.hasPendingInstall && !app.needsRecovery)
-}
-
-@Test func giteeRejectsDuplicateAndOversizedMetadata() async throws {
-    let releases = try JSONSerialization.data(withJSONObject: [release(2, 32)])
-    let duplicate = Data(#"[{"name":"appcast-arm64.xml","browser_download_url":"https://gitee.com/feed"},{"name":"appcast-arm64.xml","browser_download_url":"https://gitee.com/feed"}]"#.utf8)
-    await #expect(throws: (any Error).self) {
-        _ = try await GiteeUpdateFeed.resolve(architecture: "arm64") { url in
-            url.path.hasSuffix("/releases") ? releases : duplicate
-        }
-    }
-    await #expect(throws: (any Error).self) {
-        _ = try await GiteeUpdateFeed.resolve { _ in Data(repeating: 32, count: GiteeUpdateFeed.limit + 1) }
-    }
 }

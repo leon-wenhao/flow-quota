@@ -43,12 +43,15 @@ public struct TrafficCategorySnapshot: Codable, Sendable {
     public let clashBreakdown: ClashUsageBreakdown?
     public let clashSourceError: String?
     public let clashSourceObservations: [ClashUsageSource]?
+    /// Display-only source totals reconciled to the physical interface minute ledger.
+    public let reconciledTraffic: ReconciledTrafficBreakdown?
+    public let reconciledTrafficError: String?
 
     public init(category: TrafficCategory, applications: [ApplicationSnapshot], applicationsAvailable: Bool,
                 sampledAt: Date?, interfaceUsage: InterfaceUsage?, interfaceSampledAt: Date?,
                 interfaceMessage: String, trafficAlertPolicy: TrafficAlertPolicy,
                 trafficAlertEvents: [TrafficAlertEvent], interfaceUsageMinutes: [InterfaceUsageMinute]? = nil,
-                mihomoProxy: MihomoProxySnapshot? = nil, clashBreakdown: ClashUsageBreakdown? = nil, clashSourceError: String? = nil, clashSourceObservations: [ClashUsageSource]? = nil) {
+                mihomoProxy: MihomoProxySnapshot? = nil, clashBreakdown: ClashUsageBreakdown? = nil, clashSourceError: String? = nil, clashSourceObservations: [ClashUsageSource]? = nil, reconciledTraffic: ReconciledTrafficBreakdown? = nil, reconciledTrafficError: String? = nil) {
         self.category = category
         self.applications = applications
         self.applicationsAvailable = applicationsAvailable
@@ -63,6 +66,8 @@ public struct TrafficCategorySnapshot: Codable, Sendable {
         self.clashBreakdown = clashBreakdown
         self.clashSourceError = clashSourceError
         self.clashSourceObservations = clashSourceObservations
+        self.reconciledTraffic = reconciledTraffic
+        self.reconciledTrafficError = reconciledTrafficError
     }
 }
 

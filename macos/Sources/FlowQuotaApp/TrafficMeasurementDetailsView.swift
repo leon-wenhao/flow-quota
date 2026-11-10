@@ -8,6 +8,11 @@ struct TrafficMeasurementDetailsView: View {
 
     var body: some View {
         SettingsSection(title: "计量原始记录") {
+            if let error = state.trafficBreakdownError {
+                Text("来源核对失败：\(error)").font(.caption).foregroundStyle(.orange)
+            } else if let notice = state.trafficBreakdownNotice {
+                Text(notice).font(.caption).foregroundStyle(.secondary)
+            }
             ForEach(UsageDirection.allCases) { direction in
                 Text(direction.rawValue + "计数核对").font(.subheadline)
                 TrafficMeasurementStatus(total: state.totalUsage.flatMap { _ in state.categoryInterfaceUsage }.map {
@@ -16,7 +21,9 @@ struct TrafficMeasurementDetailsView: View {
                     direction.bytes(upload: $0.usage.uploadedBytes, download: $0.usage.downloadedBytes)
                 }) : nil)
             }
-            ForEach(state.applications.filter { ClashUsageBreakdown.isProxy($0.identity) }) { app in
+            Text("原始进程观测（可能与接口父项重叠；用于核对，不作为接口来源直接相加）")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(state.applications) { app in
                 ApplicationRow(application: app, usage: state.knownUsage(app)) { edit(app) }
             }
             if let notice = state.categorySnapshot?.clashBreakdown?.notice {
