@@ -8,7 +8,7 @@ Flow Quota 使用 Sparkle 2.10.1（SwiftPM 精确锁定，macOS 14+），首次�
 
 GitHub 优先和一次 Gitee 回退均在主线程调用 Sparkle 2.10.1 的 `SPUUpdater.checkForUpdateInformation()`，只查询 appcast 并通过 delegate 更新版本提示；Sparkle 自身会忽略用户已跳过的版本。查询中、安装交接、服务恢复或其他服务操作中不会启动另一次自动查询。找到新版在菜单栏面板显示“有新版本”，关于页显示版本信息；不激活应用、不弹更新框、不下载包。用户点击“检查更新”时先静默确认可用源，成功后在同源打开标准交互流程；两端失败则回到关于页显示错误。失败信息保留在关于页，成功查询后清除。
 
-`SUEnableAutomaticChecks` 和 `automaticallyChecksForUpdates` 继续为 false，用来禁用 Sparkle 自带的后台交互式检查；应用自有调度只允许 `.updateInformation`，拒绝 `.updatesInBackground`。自动下载／安装及系统信息上报继续关闭。更新优先 GitHub，失败后尝试 Gitee `codex/update-feeds` 分支的固定架构签名清单（`updates/appcast-arm64.xml` 或 `updates/appcast-x86_64.xml`），不读取 Release 正文或 ready 标记；正常无更新不回退，签名校验保持不变。0.1.12 的八项 Gitee 附件已核验；新清单分支及本轮客户端仍待线上激活和端到端验收，不能视为已上线。检查时间属于通用偏好，不涉及统计数据库或 schema。
+`SUEnableAutomaticChecks` 和 `automaticallyChecksForUpdates` 继续为 false，用来禁用 Sparkle 自带的后台交互式检查；应用自有调度只允许 `.updateInformation`，拒绝 `.updatesInBackground`。自动下载／安装及系统信息上报继续关闭。更新优先 GitHub，失败后尝试 Gitee `codex/update-feeds` 分支的固定架构签名清单（`updates/appcast-arm64.xml` 或 `updates/appcast-x86_64.xml`），不读取 Release 正文或 ready 标记；正常无更新不回退，签名校验保持不变。0.1.13 已双端发布；Gitee 八项附件及固定清单匿名回读通过，GitHub latest 已激活。真实客户端跨版本安装及不同国内网络可达性仍待验收。检查时间属于通用偏好，不涉及统计数据库或 schema。
 
 官方 API：Sparkle `SPUUpdater` 的 `checkForUpdateInformation` 文档（https://sparkle-project.org/documentation/api-reference/Classes/SPUUpdater.html），并核对固定依赖 2.10.1 的 `SPUUpdater.h`、`SPUUpdateCheck.h` 与 `SPUUpdaterDelegate.h`。该 API 要求主线程，只通过查找／未找到／完成回调提供结果，已有会话时不启动新查询。
 

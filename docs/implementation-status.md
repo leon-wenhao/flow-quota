@@ -636,3 +636,12 @@ Gitee 尚无 Release。网页已准备 v0.1.12 标题及相同说明；Chrome �
 发布前 447 项 Swift 测试与 67 项 Python 测试通过。全量 Swift 首轮发现反馈布局测试误选新增的侧栏滚动视图；修正为选取较宽的内容滚动视图后，159 项应用测试全部通过，保留滚动位置与反馈不改变布局的断言。发布文案测试同步到本次三条摘要。待发布文件未发现本次检查的私钥及常见令牌格式；该检查不保证覆盖所有凭据。
 
 Gitee Release API 凭据缺失，本次使用用户已登录的 Chrome 完成平台上传，随后仍按脚本执行公开附件大小／摘要／签名验证和固定清单匿名回读。平台发布及激活结果单独记录，不以本节准备状态代替上线结论。
+
+
+## 2026-11-10 0.1.13 发布结果
+
+源码提交 `c0d9c3c836621cd977eaedf2ea6fdc2d1bdb23a0` 已同步两端 main，双端 `v0.1.13` 指向该提交。版本 0.1.13、构建 34 的 arm64／x86_64 DMG 各构建一次，Release 审计通过；GitHub／Gitee 均已正式发布八项白名单附件，两端摘要一致，Gitee 附件逐项完成匿名回读与签名核验。
+
+Gitee 固定签名清单分支首次发布成功，两架构当前／版本 XML 四项匿名回读字节一致，随后激活 GitHub latest 为 0.1.13。Gitee 正文仍受平台审核影响；新客户端发现逻辑不依赖该正文。Gitee 无 API 发布凭据，本次通过已登录 Chrome 上传／转正式，未创建或复用其他项目凭据。恢复记录在忽略目录 `.artifacts/releases/FlowQuota-0.1.13-build-34-publication.json`；截图 `.artifacts/release-0.1.13-gitee-published.png`。发布期间 GitHub Git HTTPS 一次 HTTP2 失败、一次 HTTP1 空响应，GitHub API 已确认准确 tag，Gitee SSH tag 推送成功，无强推或 tag 改写。
+
+此前全部 447 项 Swift／67 项 Python 回归通过。未实际执行客户端跨版本替换或 Intel 真机运行，未验证所有国内网络；未制造热点计量实验流量。当前 ad-hoc、未 Apple 公证限制不变。

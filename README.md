@@ -5,7 +5,7 @@ macOS 菜单栏流量统计与阈值提醒工具，采用 [MIT 许可证](LICENS
 - [下载安装包](https://github.com/leon-wenhao/flow-quota/releases/latest)：Apple 芯片选 `arm64.dmg`，Intel 选 `x86_64.dmg`。
 - [安装与更新](INSTALL.md) · [分发与数据说明](DISTRIBUTION.md) · [反馈问题](https://github.com/leon-wenhao/flow-quota/issues)。
 - 当前安装包使用 ad-hoc 签名，尚未 Apple 公证；只统计和提醒，不阻断网络。
-- 源码以同一份历史同步至 [Gitee](https://gitee.com/Leon-wh/flow-quota)；双端发布流程见 [发布说明](docs/release-macos.md)。Gitee 0.1.12 附件已完成匿名摘要核验，新的固定签名更新入口尚待线上激活及客户端验收，当前默认下载安装入口仍为 GitHub。
+- 源码以同一份历史同步至 [Gitee](https://gitee.com/Leon-wh/flow-quota)；双端发布流程见 [发布说明](docs/release-macos.md)。0.1.13 已双端发布，Gitee 固定签名更新入口已激活并通过匿名回读；客户端优先 GitHub，检查失败后尝试 Gitee。
 
 
 <img src="assets/brand/logo-preview.png" alt="Flow Quota Logo" width="120" height="120">

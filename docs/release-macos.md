@@ -1,6 +1,6 @@
 # macOS 双平台发布
 
-GitHub `leon-wenhao/flow-quota` 与 Gitee `Leon-wh/flow-quota` 维护同一份源码、版本和 tag。DMG 仅作为 Release 附件，构建一次、签名一次，再将相同字节发布到两端。当前 Gitee 已同步源码，0.1.12 八项附件已完成匿名摘要核验；Release API 凭据、新固定清单激活及客户端端到端验收仍待完成，不能据此声称国内应用内更新已上线。详细状态见 [双平台方案](gitee-distribution-plan.md)。
+GitHub `leon-wenhao/flow-quota` 与 Gitee `Leon-wh/flow-quota` 维护同一份源码、版本和 tag。DMG 仅作为 Release 附件，构建一次、签名一次，再将相同字节发布到两端。0.1.13 已双端发布并完成八项附件核验，Gitee 固定签名清单与 GitHub latest 已激活。Gitee Release API 凭据仍待配置，本次使用登录网页上传；真实客户端跨版本安装及不同国内网络可达性尚未验收。详细状态见 [双平台方案](gitee-distribution-plan.md)。
 
 ## 日常提交
 
@@ -42,7 +42,7 @@ python3 scripts/push_sources.py
 2. 验证 bundle 和 sourceCommit，在两端推送同一 main 与精确指向源码的 `v版本` tag。已有 tag 不同则停止。
 3. GitHub 先建 draft，按八文件白名单上传，核对服务器大小和 SHA-256 后发布，但不设为 latest。
 4. Gitee 先建 prerelease，上传同一 DMG 与公共说明／清单。根据实际附件 URL 生成 Gitee 专用架构 appcast：沿用原包 Ed25519 签名，独立签署 feed。白名单仍为两个 DMG、两个 appcast、SHA256SUMS、update-manifest.json、release-manifest.json、RELEASE-NOTES.md。
-5. 不带令牌读取 Gitee 版本及附件，流式计算实际附件 SHA-256，与本地逐项比对，并检查 DMG 下载文件名能被 Sparkle 识别。不能只依赖名称／大小；拒绝 GitHub 下载地址和不受支持的重定向。此为正式发布审计，遵守不在热点下做实验性下载的限制；0.1.12 已执行实际附件匿名回读；本轮新发布流程使用离线模拟验证，固定清单线上地址尚待回读验收。
+5. 不带令牌读取 Gitee 版本及附件，流式计算实际附件 SHA-256，与本地逐项比对，并检查 DMG 下载文件名能被 Sparkle 识别。不能只依赖名称／大小；拒绝 GitHub 下载地址和不受支持的重定向。此为正式发布审计，遵守不在热点下做实验性下载的限制；0.1.12 已执行实际附件匿名回读；本轮新发布流程使用离线模拟验证，0.1.13 固定清单已通过真实匿名回读。
 6. `--activate-manifest` 先检查 GitHub 与 Gitee 的版本／构建号单调递增，再将 Gitee 置为正式版，再通过 `gitee_feeds.py` 将两个已签名 appcast 一次非强制推送到 `codex/update-feeds` 分支，匿名回读完全一致后，最后将 GitHub 设为 latest。客户端直接读取固定清单，不依赖 Release 正文或 ready 标记。
 
 客户端不查询 Gitee Release 列表或 `/releases/latest`。固定分支只发布签名 XML：`updates/appcast-{arm64,x86_64}.xml` 为当前入口，`updates/versions/v版本/` 保留不可变清单。版本号和构建号必须同时递增；相同版本只允许字节完全一致的重试。非强制推送拒绝并发冲突，不修改 main、源码 tag 或当前工作区。两端不是原子事务；不回滚、不覆写已发布包，按记录继续即可。
